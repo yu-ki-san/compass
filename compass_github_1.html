@@ -485,16 +485,17 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
 <script>
 /* ══════════════════════════════════════════
    Yahoo Finance — CORSプロキシ経由で直接取得
-   プロキシ: allorigins.win（無料・無制限）
+   プロキシ: 自前Cloudflare Worker経由
 ══════════════════════════════════════════ */
-const PROXY = 'https://api.allorigins.win/raw?url=';
-const YF    = 'https://query1.finance.yahoo.com/v8/finance/chart/';
-const YF2   = 'https://query2.finance.yahoo.com/v8/finance/chart/';
+// 自前Cloudflare WorkerをCORSプロキシとして使用
+const WORKER = 'https://compass-proxy.y-pp-bas-et-u-i-awa.workers.dev';
+const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 
 async function yfetch(ticker, interval='1d', range='6mo') {
-  const url = `${YF}${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
-  const proxy_url = PROXY + encodeURIComponent(url);
-  const res = await fetch(proxy_url, { signal: AbortSignal.timeout(12000) });
+  const target = `${YF}${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+  const res = await fetch(`${WORKER}?url=${encodeURIComponent(target)}`, {
+    signal: AbortSignal.timeout(14000)
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   const result = json?.chart?.result?.[0];
