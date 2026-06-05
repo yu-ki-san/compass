@@ -266,6 +266,7 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
   <nav class="hnav">
     <button class="nav-btn active" onclick="switchView('dashboard',this)">ダッシュボード</button>
     <button class="nav-btn" onclick="switchView('positions',this)">保有ポジション</button>
+    <button class="nav-btn" onclick="switchView('mylist',this)">📋 マイリスト</button>
     <button class="nav-btn" onclick="switchView('settings',this)">設定</button>
   </nav>
   <div class="hright">
@@ -380,7 +381,7 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
 
       <div class="rank-wrap">
         <table>
-          <thead><tr><th>順</th><th>銘柄</th><th>現在値</th><th>確率</th><th>スコア</th><th>注文方法</th><th>時間帯</th><th></th></tr></thead>
+          <thead><tr><th>順</th><th>銘柄</th><th>現在値</th><th>統合確率</th><th>統合スコア</th><th>AI確率/リスク</th><th>注文方法</th><th>時間帯</th><th></th></tr></thead>
           <tbody id="rank-body"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--t3);">データ取得中...</td></tr></tbody>
         </table>
       </div>
@@ -403,6 +404,54 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
         </div>
       </div>
       <div class="pos-list" id="pos-list"></div>
+    </div>
+
+    <!-- MY LIST -->
+    <div class="view" id="view-mylist">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="sec-title">📋 マイリスト分析</div>
+          <div style="font-size:11.5px;color:var(--t3);margin-top:3px;">自分で登録した銘柄のみをスキャン。ボタンを押したときだけ計算が走ります。</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="add-pos-btn" onclick="openAddStockModal()">＋ 銘柄を追加</button>
+          <button id="mylist-run-btn" onclick="runMyListAnalysis()" style="
+            display:flex;align-items:center;gap:7px;padding:7px 16px;
+            background:rgba(47,120,240,.12);border:1px solid rgba(47,120,240,.36);
+            border-radius:7px;color:var(--accent2);font-size:13px;font-weight:500;
+            font-family:var(--sans);cursor:pointer;transition:all .14s;white-space:nowrap;">
+            <div id="mylist-run-spin" style="display:none;width:12px;height:12px;border:2px solid rgba(90,155,255,.3);border-top-color:var(--accent2);border-radius:50%;animation:spin .7s linear infinite;"></div>
+            <span id="mylist-run-icon">▶</span> このリストで分析
+          </button>
+        </div>
+      </div>
+
+      <!-- 登録銘柄リスト -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;">
+        <div style="display:grid;grid-template-columns:1fr 80px 100px 80px 50px;gap:0;background:var(--bg3);border-bottom:1px solid var(--border);padding:8px 14px;font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;">
+          <span>銘柄</span><span>市場</span><span>Ticker</span><span>セグメント</span><span></span>
+        </div>
+        <div id="mylist-stock-rows">
+          <div class="empty" style="padding:30px 16px;">
+            <div class="empty-icon" style="font-size:28px;">📋</div>
+            <div class="empty-text">銘柄が登録されていません。<br>「＋ 銘柄を追加」から追加してください。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分析結果 -->
+      <div id="mylist-result-area" style="display:none;">
+        <div class="sec-hdr">
+          <div class="sec-title">分析結果</div>
+          <div class="sec-meta" id="mylist-scan-time"></div>
+        </div>
+        <div class="rank-wrap">
+          <table>
+            <thead><tr><th>順</th><th>銘柄</th><th>現在値</th><th>統合確率</th><th>統合スコア</th><th>AI確率/リスク</th><th>注文方法</th><th>時間帯</th><th></th></tr></thead>
+            <tbody id="mylist-rank-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- SETTINGS -->
@@ -478,6 +527,32 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
     <div class="modal-actions">
       <button class="m-btn secondary" onclick="closeModal('add-modal')">キャンセル</button>
       <button class="m-btn primary" onclick="addPosition()">登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD STOCK MODAL -->
+<div class="modal-overlay" id="add-stock-modal">
+  <div class="modal">
+    <div class="modal-title">銘柄をマイリストに追加</div>
+    <div class="modal-body">Yahoo Financeのティッカーを入力してください。<br>日本株: <span style="font-family:var(--mono);color:var(--accent2);">7203.T</span>&nbsp; 米国株: <span style="font-family:var(--mono);color:var(--accent2);">NVDA</span></div>
+    <div class="form-grid">
+      <div class="form-group"><label class="f-label">銘柄名</label><input type="text" class="f-input" id="as-name" placeholder="例: トヨタ自動車"></div>
+      <div class="form-group"><label class="f-label">Ticker（必須）</label><input type="text" class="f-input" id="as-ticker" placeholder="例: 7203.T"></div>
+      <div class="form-group"><label class="f-label">証券コード</label><input type="text" class="f-input" id="as-code" placeholder="例: 東証P 7203"></div>
+      <div class="form-group"><label class="f-label">市場</label>
+        <select class="f-input" id="as-market">
+          <option value="jp">日本株</option>
+          <option value="us">米国株</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">
+      ティッカー不明な場合は <a href="https://finance.yahoo.com" target="_blank" style="color:var(--accent2);">finance.yahoo.com</a> で検索できます
+    </div>
+    <div class="modal-actions">
+      <button class="m-btn secondary" onclick="closeModal('add-stock-modal')">キャンセル</button>
+      <button class="m-btn primary" onclick="addStockToMyList()">追加する</button>
     </div>
   </div>
 </div>
@@ -591,21 +666,52 @@ function calcScore(prob, volRatio, ma25Dev, gpr, gprThresh) {
    状態管理
 ══════════════════════════════════════════ */
 const WATCHLIST = [
-  {name:'ソニーグループ',  code:'東証 6758',    ticker:'6758.T', market:'jp', timing:'07:00-08:00'},
-  {name:'任天堂',         code:'東証 7974',    ticker:'7974.T', market:'jp', timing:'07:00-08:00'},
-  {name:'NVIDIA',         code:'NASDAQ: NVDA', ticker:'NVDA',   market:'us', timing:'20:00-21:00'},
-  {name:'レーザーテック',  code:'東証 6920',    ticker:'6920.T', market:'jp', timing:'07:00-08:00'},
-  {name:'リクルートHD',    code:'東証 6098',    ticker:'6098.T', market:'jp', timing:'07:00-08:00'},
-  {name:'Apple',          code:'NASDAQ: AAPL', ticker:'AAPL',   market:'us', timing:'20:00-21:00'},
-  {name:'三菱商事',        code:'東証 8058',    ticker:'8058.T', market:'jp', timing:'07:00-08:00'},
-  {name:'東京エレクトロン',code:'東証 8035',    ticker:'8035.T', market:'jp', timing:'07:00-08:00'},
-  {name:'Microsoft',      code:'NASDAQ: MSFT', ticker:'MSFT',   market:'us', timing:'20:00-21:00'},
-  {name:'OLC',            code:'東証 4661',    ticker:'4661.T', market:'jp', timing:'07:00-08:00'},
-  {name:'トヨタ',          code:'東証 7203',    ticker:'7203.T', market:'jp', timing:'07:00-08:00'},
-  {name:'キーエンス',      code:'東証 6861',    ticker:'6861.T', market:'jp', timing:'07:00-08:00'},
-  {name:'Amazon',         code:'NASDAQ: AMZN', ticker:'AMZN',   market:'us', timing:'20:00-21:00'},
-  {name:'Meta',           code:'NASDAQ: META', ticker:'META',   market:'us', timing:'20:00-21:00'},
-  {name:'信越化学',        code:'東証 4063',    ticker:'4063.T', market:'jp', timing:'07:00-08:00'},
+  // ── プライム市場 ──
+  {name:'ソニーグループ',   code:'東証P 6758', ticker:'6758.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'任天堂',          code:'東証P 7974', ticker:'7974.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'レーザーテック',   code:'東証P 6920', ticker:'6920.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'リクルートHD',     code:'東証P 6098', ticker:'6098.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'三菱商事',         code:'東証P 8058', ticker:'8058.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'東京エレクトロン', code:'東証P 8035', ticker:'8035.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'オリエンタルランド',code:'東証P 4661', ticker:'4661.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'トヨタ自動車',     code:'東証P 7203', ticker:'7203.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'キーエンス',       code:'東証P 6861', ticker:'6861.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'信越化学工業',     code:'東証P 4063', ticker:'4063.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ファーストリテイリング',code:'東証P 9983',ticker:'9983.T',market:'jp',timing:'07:00-08:00',segment:'prime'},
+  {name:'KDDI',            code:'東証P 9433', ticker:'9433.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ダイキン工業',     code:'東証P 6367', ticker:'6367.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'日本電産(ニデック)',code:'東証P 6594', ticker:'6594.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'エムスリー',       code:'東証P 2413', ticker:'2413.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'野村不動産HD',     code:'東証P 3231', ticker:'3231.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'住友化学',         code:'東証P 4005', ticker:'4005.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'三菱UFJ',         code:'東証P 8306', ticker:'8306.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'SoftBank',        code:'東証P 9434', ticker:'9434.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'オリックス',       code:'東証P 8591', ticker:'8591.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  // ── スタンダード市場 ──
+  {name:'アルコニックス',   code:'東証S 3036', ticker:'3036.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'ピックルスHD',     code:'東証S 2925', ticker:'2925.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'日本ピラー工業',   code:'東証S 6490', ticker:'6490.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'タカラバイオ',     code:'東証S 4974', ticker:'4974.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'ハウスコム',       code:'東証S 3275', ticker:'3275.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'テクノホライゾン', code:'東証S 6629', ticker:'6629.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'サンウェーブ工業', code:'東証S 3428', ticker:'3428.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'イトクロ',         code:'東証S 6049', ticker:'6049.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'明豊エンタープライズ',code:'東証S 8927',ticker:'8927.T',market:'jp',timing:'07:00-08:00',segment:'standard'},
+  {name:'アサヒ衛陶',       code:'東証S 5341', ticker:'5341.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  // ── グロース市場 ──
+  {name:'フリー',           code:'東証G 4478', ticker:'4478.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ビジョナル',       code:'東証G 4194', ticker:'4194.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'カバー(ホロライブ)',code:'東証G 5253', ticker:'5253.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'弁護士ドットコム', code:'東証G 6027', ticker:'6027.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ウェルスナビ',     code:'東証G 7342', ticker:'7342.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  // ── 米国株 ──
+  {name:'NVIDIA',   code:'NASDAQ: NVDA', ticker:'NVDA', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Apple',    code:'NASDAQ: AAPL', ticker:'AAPL', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Microsoft',code:'NASDAQ: MSFT', ticker:'MSFT', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Amazon',   code:'NASDAQ: AMZN', ticker:'AMZN', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Meta',     code:'NASDAQ: META', ticker:'META', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Alphabet', code:'NASDAQ: GOOGL',ticker:'GOOGL',market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Tesla',    code:'NASDAQ: TSLA', ticker:'TSLA', market:'us', timing:'20:00-21:00', segment:'us'},
 ];
 
 const INDEX_LIST = [
@@ -759,77 +865,223 @@ async function fetchVIX() {
 }
 
 /* ══════════════════════════════════════════
-   SCREENING
+   ニュースキャッシュ（銘柄ごと・セッション中保持）
+══════════════════════════════════════════ */
+const _newsCache = {};
+const _earningsCache = {};
+
+async function fetchNewsWithCache(name, ticker) {
+  if (_newsCache[ticker]) return _newsCache[ticker];
+  const result = await fetchNews(name, ticker);
+  _newsCache[ticker] = result;
+  return result;
+}
+
+async function fetchEarningsWithCache(ticker) {
+  if (_earningsCache[ticker]) return _earningsCache[ticker];
+  const result = await fetchEarnings(ticker);
+  _earningsCache[ticker] = result;
+  return result;
+}
+
+/* ══════════════════════════════════════════
+   SCREENING（一括AI分析統合版）
 ══════════════════════════════════════════ */
 async function runScreening() {
-  const thresh = settings.gpr || 80;
-  if (gprVal >= thresh) {
-    setStatusBanner('danger','地合い：選定スキップ中',`GPRリスク高騰（${gprVal} ≥ 閾値${thresh}）のためスキップ`,'危険');
-    SIGNALS=[]; applyFilterSort(); renderRanking(); renderChart(); return;
-  }
-
-  const results = [];
+  const thresh     = settings.gpr || 80;
   const riseThresh = (settings.rise||5)/100;
   const stopThresh = (settings.stop||3)/100;
 
+  if (gprVal >= thresh) {
+    setStatusBanner('danger','地合い：選定スキップ中',
+      `GPRリスク高騰（${gprVal} ≥ 閾値${thresh}）のためスキップ`,'危険');
+    SIGNALS=[]; applyFilterSort(); renderRanking(); renderChart(); return;
+  }
+
+  // ── STEP1: テクニカル分析（全銘柄並列） ──
+  updateLoadingText('テクニカル分析中...');
+  const techResults = [];
   await Promise.allSettled(WATCHLIST.map(async stock => {
     try {
-      // 日足6ヶ月（テクニカル用）
       const daily = await yfetch(stock.ticker,'1d','6mo');
-      const {close: dc, volume: dv} = extractOHLC(daily);
-      const validClose = dc.filter(v=>v!=null);
-      if (validClose.length < 30) return;
+      const {close:dc, volume:dv} = extractOHLC(daily);
+      const vc = dc.filter(v=>v!=null);
+      if (vc.length < 30) return;
 
-      // 現在値: 分足1日（約15-20分遅延）
-      let currentPrice = validClose[validClose.length-1];
+      let currentPrice = vc[vc.length-1];
       try {
         const min1 = await yfetch(stock.ticker,'1m','1d');
         const {close:mc} = extractOHLC(min1);
-        const validMin = mc.filter(v=>v!=null);
-        if (validMin.length>0) currentPrice = validMin[validMin.length-1];
+        const vm = mc.filter(v=>v!=null);
+        if (vm.length>0) currentPrice = vm[vm.length-1];
       } catch {}
 
-      const isUs = stock.market==='us';
-      const rsi  = calcRSI(validClose);
-      const {hist:macdH} = calcMACD(validClose);
-      const ma25 = calcMA(validClose,25);
-      const ma200= calcMA(validClose,200);
-      const vols = dv.filter(v=>v!=null);
-      const volR = volSurge(vols);
-      const prob = calcProb(rsi,macdH,volR,ma25,ma200,currentPeriod);
-      const score= calcScore(prob,volR,ma25.dev||0,gprVal,thresh);
+      const isUs   = stock.market==='us';
+      const rsi    = calcRSI(vc);
+      const {hist:macdH} = calcMACD(vc);
+      const ma25   = calcMA(vc,25);
+      const ma200  = calcMA(vc,200);
+      const vols   = dv.filter(v=>v!=null);
+      const volR   = volSurge(vols);
+      const prob   = calcProb(rsi,macdH,volR,ma25,ma200,currentPeriod);
+      const tScore = calcScore(prob,volR,ma25.dev||0,gprVal,thresh);
 
-      if (prob < 40) return;
+      if (prob < 38) return;
 
       const orderType  = (rsi>65||volR>2.5) ? '成行' : '指値';
-      const orderPrice = orderType==='成行' ? currentPrice : +(currentPrice*0.998).toFixed(isUs?2:0);
-      const tgtPct     = riseThresh + (currentPeriod-2)*0.008;
+      const orderPrice = orderType==='成行'
+        ? currentPrice : +(currentPrice*0.998).toFixed(isUs?2:0);
+      const tgtPct = riseThresh + (currentPeriod-2)*0.008;
 
-      results.push({
+      techResults.push({
         name:stock.name, code:stock.code, ticker:stock.ticker,
-        market:stock.market, timing:stock.timing,
+        market:stock.market, timing:stock.timing, segment:stock.segment||'prime',
         price: isUs ? +currentPrice.toFixed(2) : Math.round(currentPrice),
         order:orderType, orderAmt:orderPrice,
         target:+(orderPrice*(1+tgtPct)).toFixed(isUs?2:0),
         stop:  +(orderPrice*(1-stopThresh)).toFixed(isUs?2:0),
-        prob, score, basePeriod:currentPeriod,
+        prob, techScore:tScore, basePeriod:currentPeriod,
+        indicators:{ rsi, macdHist:+macdH.toFixed(4), volRatio:volR,
+          ma25:{ above:ma25.above, slope:+ma25.slope.toFixed(3) },
+          ma200:{ above:ma200.above, slope:+ma200.slope.toFixed(3) } },
       });
     } catch {}
   }));
 
-  results.sort((a,b)=>b.score-a.score);
-  SIGNALS = results.slice(0,10).map((s,i)=>({...s,rank:i+1}));
+  techResults.sort((a,b)=>b.techScore-a.techScore);
+  const top20 = techResults.slice(0,20); // AI分析に渡す候補を20に絞る
+
+  if (top20.length === 0) {
+    setStatusBanner('warn','シグナルなし','スクリーニング条件を満たす銘柄が見つかりませんでした','注意');
+    SIGNALS=[]; applyFilterSort(); renderRanking(); renderChart(); return;
+  }
+
+  // ── STEP2: ニュース・決算を並列取得（キャッシュ利用） ──
+  updateLoadingText('ニュース・決算データ取得中...');
+  const enriched = await Promise.all(top20.map(async s => {
+    const [news, earnings] = await Promise.all([
+      fetchNewsWithCache(s.name, s.ticker),
+      fetchEarningsWithCache(s.ticker),
+    ]);
+    return { ...s, news: news||[], earnings: earnings||null };
+  }));
+
+  // ── STEP3: Claude一括AI分析（1回のAPIコール） ──
+  const anthropicKey = localStorage.getItem('compass_anthropic_key');
+  let aiResults = {};
+
+  if (anthropicKey) {
+    updateLoadingText('Claude AI一括分析中...');
+    aiResults = await runBulkAIAnalysis(enriched, anthropicKey);
+  }
+
+  // ── STEP4: テクニカル×0.5 + AIスコア×0.5 で統合スコア計算 ──
+  const finalResults = enriched.map(s => {
+    const ai = aiResults[s.ticker] || null;
+    const aiProb  = ai?.ai_prob  ?? s.prob;
+    const aiScore = ai?.ai_score ?? s.techScore;
+    const integratedScore = ai
+      ? Math.round(s.techScore * 0.5 + aiScore * 0.5)
+      : s.techScore;
+    const integratedProb = ai
+      ? Math.round(s.prob * 0.5 + aiProb * 0.5)
+      : s.prob;
+    return {
+      ...s,
+      prob:  integratedProb,
+      score: integratedScore,
+      aiProb, aiScore,
+      aiSummary:   ai?.summary   || null,
+      aiBullish:   ai?.bullish   || [],
+      aiBearish:   ai?.bearish   || [],
+      aiRisk:      ai?.risk      || null,
+      hasAI:       !!ai,
+    };
+  });
+
+  finalResults.sort((a,b)=>b.score-a.score);
+  SIGNALS = finalResults.slice(0,10).map((s,i)=>({...s,rank:i+1}));
 
   const now=new Date();
+  const aiTag = anthropicKey ? ' ／ AI統合スコア' : ' ／ テクニカルのみ';
   document.getElementById('scan-time').textContent =
-    `スキャン: ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} ／ 予測期間: ${currentPeriod}営業日`;
+    `スキャン: ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} ／ 予測期間: ${currentPeriod}営業日${aiTag}`;
 
-  if (SIGNALS.length===0) {
-    setStatusBanner('warn','シグナルなし','スクリーニング条件を満たす銘柄が見つかりませんでした','注意');
-  } else {
-    setStatusBanner('safe','市場環境：投資推奨',`${SIGNALS.length}銘柄のシグナルを検出 ／ リアルタイムデータ取得完了`,'安全');
-  }
+  setStatusBanner('safe','市場環境：投資推奨',
+    `${SIGNALS.length}銘柄を検出（${WATCHLIST.length}銘柄スキャン）`,
+    '安全');
   applyFilterSort(); renderRanking(); renderChart();
+}
+
+/* ══════════════════════════════════════════
+   Claude 一括AI分析（1回のAPIコールで全銘柄）
+══════════════════════════════════════════ */
+async function runBulkAIAnalysis(stocks, anthropicKey) {
+  const stocksText = stocks.map((s,i) => {
+    const newsText = s.news.length>0
+      ? s.news.slice(0,3).map(n=>`    ・${n.date}[${n.source}]${n.title}`).join('\n')
+      : '    ニュースなし';
+    const ea = s.earnings;
+    const earText = ea
+      ? `売上成長:${ea.revenueGrowth}/ROE:${ea.returnOnEquity}/利益率:${ea.profitMargins}/EPS実績:${ea.epsActual}/EPS予想:${ea.epsEstimate}/目標株価:${ea.targetPrice}`
+      : '決算データなし';
+    return `[${i+1}] ${s.name}(${s.ticker}) ${s.market==='us'?'米国株':'日本株'} 現在値:${s.price}
+  テクニカル: RSI=${s.indicators.rsi} MACD_hist=${s.indicators.macdHist} 出来高急増=${s.indicators.volRatio}倍 25日線=${s.indicators.ma25.above?'上':'下'} 200日線=${s.indicators.ma200.above?'上':'下'}
+  決算: ${earText}
+  ニュース:\n${newsText}`;
+  }).join('\n\n');
+
+  const prompt = `あなたは日本株・米国株の短期トレード専門アナリストです。
+以下の${stocks.length}銘柄を${currentPeriod}営業日以内の短期上昇の観点で分析してください。
+
+${stocksText}
+
+各銘柄について、テクニカル・決算・ニュースを総合判断し、以下のJSON形式のみで回答してください（前置き・後置き・\`\`\`不要）:
+{
+  "analyses": [
+    {
+      "ticker": "ティッカーシンボル",
+      "ai_prob": 上昇確率(0-100の整数),
+      "ai_score": 総合スコア(0-100の整数),
+      "summary": "30文字以内の日本語サマリー",
+      "bullish": ["強気材料（最大2つ）"],
+      "bearish": ["弱気材料（最大2つ）"],
+      "risk": "low/medium/high"
+    }
+  ]
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({
+        model:'claude-haiku-4-5',
+        max_tokens:2048,
+        messages:[{role:'user',content:prompt}]
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) { console.warn('Claude API error:',res.status); return {}; }
+    const json = await res.json();
+    const text = json?.content?.[0]?.text||'';
+    const clean = text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+    // ticker→結果のマップに変換
+    const map = {};
+    (parsed.analyses||[]).forEach(a=>{ map[a.ticker]=a; });
+    return map;
+  } catch(e) { console.warn('Bulk AI error:',e); return {}; }
+}
+
+function updateLoadingText(msg) {
+  const el = document.getElementById('loading-text');
+  if (el) el.textContent = msg;
 }
 
 /* ══════════════════════════════════════════
@@ -851,7 +1103,7 @@ async function triggerRecalc(silent=false) {
   if (btn.disabled) return;
   btn.disabled=true; btn.classList.add('loading');
   if (!silent) showLoadingOverlay('再計算中...');
-  const steps=['VIX取得中...','指数データ取得中...','スクリーニング実行中...','スコア算出中...'];
+  const steps=['VIX・指数データ取得中...','テクニカル分析中...','ニュース・決算取得中...','Claude AI一括分析中...','ランキング統合中...'];
   let si=0;
   const sv=setInterval(()=>{ if(!silent&&si<steps.length) document.getElementById('loading-text').textContent=steps[si++]; },500);
   try {
@@ -930,19 +1182,32 @@ function getDL(){ if(!window._dl) applyFilterSort(); return window._dl; }
 function renderRanking() {
   const list=getDL();
   const body=document.getElementById('rank-body');
-  if(list.length===0){ body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--t3);">条件に合う銘柄がありません</td></tr>'; return; }
+  if(list.length===0){ body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--t3);">条件に合う銘柄がありません</td></tr>'; return; }
   body.innerHTML=list.map((s,i)=>{
     const isUs=s.market==='us';
     const fp=v=>isUs?'$'+parseFloat(v).toFixed(2):Math.round(v).toLocaleString()+'円';
     const pc=s.prob>=70?'var(--green2)':s.prob>=60?'var(--amber2)':'var(--t2)';
     const sc=s.score>=85?'var(--accent)':s.score>=70?'var(--amber)':'var(--t3)';
     const gi=SIGNALS.indexOf(s);
+    // AIバッジ
+    const riskColor = s.aiRisk==='low'?'var(--green2)':s.aiRisk==='medium'?'var(--amber2)':'var(--red2)';
+    const riskLabel = s.aiRisk==='low'?'低':s.aiRisk==='medium'?'中':'高';
+    const aiBadge = s.hasAI
+      ? `<span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${riskColor};">${s.aiProb}%</span>
+         <span style="font-size:9.5px;padding:1px 5px;border-radius:3px;background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}44;margin-left:3px;">${riskLabel}</span>`
+      : '<span style="font-size:10px;color:var(--t4);">—</span>';
+    // セグメントバッジ
+    const segMap={'prime':'P','standard':'S','growth':'G','us':'US'};
+    const segColor={'prime':'var(--accent2)','standard':'var(--amber2)','growth':'var(--purple2)','us':'var(--green2)'};
+    const seg=s.segment||'prime';
+    const segBadge=`<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:${segColor[seg]}22;color:${segColor[seg]};border:1px solid ${segColor[seg]}44;">${segMap[seg]}</span>`;
     return `<tr class="${selIdx===gi?'sel':''}" onclick="openDetail(${gi},this)">
       <td class="rk-num">${String(i+1).padStart(2,'0')}</td>
-      <td><div class="tk-name">${s.name}</div><div class="tk-code">${s.code}</div><div class="tk-period">${currentPeriod}日以内 +${settings.rise||5}%予測</div></td>
+      <td><div style="display:flex;align-items:center;gap:5px;">${segBadge}<span class="tk-name">${s.name}</span></div><div class="tk-code">${s.code}</div><div class="tk-period">${currentPeriod}日以内 +${settings.rise||5}%予測</div></td>
       <td class="p-mono">${fp(s.price)}</td>
       <td><span class="prob-val" style="color:${pc}">${s.prob}%</span></td>
       <td><div class="score-row"><div class="score-track"><div class="score-fill" style="width:${s.score}%;background:${sc}"></div></div><span class="score-n">${s.score}</span></div></td>
+      <td>${aiBadge}</td>
       <td><span class="ob ${s.order==='指値'?'ob-lim':'ob-mkt'}">${s.order==='指値'?'指値 '+fp(s.orderAmt):'成行'}</span></td>
       <td><span class="tm-badge">${s.timing}</span></td>
       <td><button class="row-dbtn" onclick="event.stopPropagation();openDetail(${gi})">詳細</button></td>
@@ -984,9 +1249,9 @@ function openDetail(idx,row) {
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
   document.querySelectorAll('#rank-body tr').forEach(r=>r.classList.remove('sel'));
   if(row) row.classList.add('sel');
-  // AI分析を非同期で読み込み
+  // AI分析パネル：スクリーニング時に取得済みのデータを使用
   document.getElementById('ai-analysis-panel').innerHTML='';
-  loadAIAnalysis(s);
+  renderCachedAIPanel(s);
 }
 function closeDetail(){ document.getElementById('detail-panel').classList.remove('open'); selIdx=-1; document.querySelectorAll('#rank-body tr').forEach(r=>r.classList.remove('sel')); }
 
@@ -1347,8 +1612,35 @@ ${newsText}
 }
 
 /* ══════════════════════════════════════════
-   AI分析パネルの表示（詳細パネル内）
+   AI分析パネル（キャッシュ済みデータを即時表示）
 ══════════════════════════════════════════ */
+function renderCachedAIPanel(signal) {
+  const panel = document.getElementById('ai-analysis-panel');
+  if (!panel) return;
+
+  const news     = _newsCache[signal.ticker]     || [];
+  const earnings = _earningsCache[signal.ticker] || null;
+
+  // AIデータ（スクリーニング時に統合済み）
+  const ai = signal.hasAI ? {
+    ai_prob:  signal.aiProb,
+    ai_score: signal.aiScore,
+    summary:  signal.aiSummary,
+    bullish:  signal.aiBullish,
+    bearish:  signal.aiBearish,
+    risk:     signal.aiRisk,
+  } : null;
+
+  const anthropicKey = localStorage.getItem('compass_anthropic_key');
+  if (!anthropicKey) {
+    panel.innerHTML = `<div style="font-size:12px;color:var(--t3);padding:10px 0;">
+      ⚙ 設定画面でAnthropicのAPIキーを入力するとAI分析が表示されます。</div>`;
+  } else {
+    _renderAIPanel(panel, ai, earnings, news, signal);
+  }
+}
+
+/* レガシー：個別AI分析（未使用・後方互換のため残す） */
 async function loadAIAnalysis(signal) {
   const panel = document.getElementById('ai-analysis-panel');
   if (!panel) return;
@@ -1374,58 +1666,68 @@ async function loadAIAnalysis(signal) {
     return;
   }
 
+  _renderAIPanel(panel, ai, earnings, news, signal);
+}
+
+/* ══════════════════════════════════════════
+   共通AI表示ヘルパー
+══════════════════════════════════════════ */
+function _renderAIPanel(panel, ai, earnings, news, signal) {
+  if (!ai) {
+    panel.innerHTML = '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:10px;font-size:12px;color:var(--t3);">AI分析データなし。「今すぐ再計算」を実行してください。</div>';
+    return;
+  }
   const riskColor = ai.risk==='low'?'var(--green2)':ai.risk==='medium'?'var(--amber2)':'var(--red2)';
   const riskLabel = ai.risk==='low'?'低リスク':ai.risk==='medium'?'中リスク':'高リスク';
-  const bullish   = (ai.bullish||[]).map(b=>`<span style="background:rgba(15,181,116,.1);color:var(--green2);border:1px solid rgba(15,181,116,.25);padding:2px 8px;border-radius:4px;font-size:11px;">↑ ${b}</span>`).join(' ');
-  const bearish   = (ai.bearish||[]).map(b=>`<span style="background:rgba(230,60,60,.1);color:var(--red2);border:1px solid rgba(230,60,60,.25);padding:2px 8px;border-radius:4px;font-size:11px;">↓ ${b}</span>`).join(' ');
-  const newsHtml  = news.length>0
-    ? news.map(n=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-bottom:1px solid var(--border);">
-        <span style="color:var(--t3);">${n.date} [${n.source}]</span> ${n.title}
-      </div>`).join('')
-    : `<div style="font-size:11px;color:var(--t3);">ニュース取得なし（該当記事が見つかりませんでした）</div>`;
-  const earningsHtml = earnings
-    ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
-        ${[
-          ['売上成長率', earnings.revenueGrowth],
-          ['利益成長率', earnings.earningsGrowth],
-          ['ROE', earnings.returnOnEquity],
-          ['利益率', earnings.profitMargins],
-          ['予想PER', earnings.forwardPE],
-          ['EPS', `${earnings.epsActual} / 予${earnings.epsEstimate}`],
-        ].map(([l,v])=>`<div style="background:var(--bg3);border-radius:5px;padding:6px 8px;border:1px solid var(--border);">
-          <div style="font-size:9.5px;color:var(--t3);">${l}</div>
-          <div style="font-family:var(--mono);font-size:12px;color:var(--t1);">${v}</div>
-        </div>`).join('')}
-      </div>`
-    : `<div style="font-size:11px;color:var(--t3);">決算データ取得なし</div>`;
+  const pColor = ai.ai_prob>=65?'var(--green2)':ai.ai_prob>=50?'var(--amber2)':'var(--red2)';
+  const bullish = (ai.bullish||[]).map(b=>`<span style="background:rgba(15,181,116,.1);color:var(--green2);border:1px solid rgba(15,181,116,.25);padding:2px 8px;border-radius:4px;font-size:11px;">↑ ${b}</span>`).join(' ');
+  const bearish = (ai.bearish||[]).map(b=>`<span style="background:rgba(230,60,60,.1);color:var(--red2);border:1px solid rgba(230,60,60,.25);padding:2px 8px;border-radius:4px;font-size:11px;">↓ ${b}</span>`).join(' ');
+  const techScore = signal?.techScore ?? '-';
+  const intScore  = signal?.score ?? '-';
 
-  panel.innerHTML = `
-    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <span style="font-size:12px;font-weight:600;color:var(--accent2);">🤖 Claude AI分析</span>
-        <span style="font-family:var(--mono);font-size:18px;font-weight:700;color:${ai.ai_prob>=65?'var(--green2)':ai.ai_prob>=50?'var(--amber2)':'var(--red2)'};">${ai.ai_prob}%</span>
-        <span style="font-size:11px;color:var(--t2);">上昇確率</span>
-        <span style="padding:2px 9px;border-radius:10px;font-size:10.5px;background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}44;">${riskLabel}</span>
-      </div>
-      <div style="font-size:12.5px;color:var(--t1);background:var(--bg3);border-radius:6px;padding:9px 12px;margin-bottom:10px;border-left:3px solid var(--accent2);">${ai.summary}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${bullish}${bearish}</div>
-      <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">決算・ファンダメンタル</div>
-      ${earningsHtml}
-      <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin:10px 0 5px;">直近ニュース</div>
-      ${newsHtml}
-    </div>`;
+  let html = `<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:600;color:var(--accent2);">🤖 Claude AI分析</span>
+      <span style="font-family:var(--mono);font-size:18px;font-weight:700;color:${pColor};">${ai.ai_prob}%</span>
+      <span style="font-size:11px;color:var(--t2);">AI上昇確率</span>
+      <span style="padding:2px 9px;border-radius:10px;font-size:10.5px;background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}44;">${riskLabel}</span>
+      <span style="font-size:10px;color:var(--t3);">テクニカル: ${techScore}点 → 統合スコア: ${intScore}点</span>
+    </div>
+    <div style="font-size:12.5px;color:var(--t1);background:var(--bg3);border-radius:6px;padding:9px 12px;margin-bottom:10px;border-left:3px solid var(--accent2);">${ai.summary}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${bullish}${bearish}</div>
+    <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">決算・ファンダメンタル</div>`;
+
+  if (earnings) {
+    const items = [
+      ['売上成長率',earnings.revenueGrowth],['利益成長率',earnings.earningsGrowth],
+      ['ROE',earnings.returnOnEquity],['利益率',earnings.profitMargins],
+      ['予想PER',earnings.forwardPE],['目標株価',earnings.targetPrice],
+      ['EPS実績',earnings.epsActual],['EPS予想',earnings.epsEstimate],
+    ];
+    html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px;">
+      ${items.map(([l,v])=>`<div style="background:var(--bg3);border-radius:5px;padding:5px 8px;border:1px solid var(--border);">
+        <div style="font-size:9px;color:var(--t3);">${l}</div>
+        <div style="font-family:var(--mono);font-size:11.5px;color:var(--t1);">${v}</div>
+      </div>`).join('')}</div>`;
+  } else {
+    html += '<div style="font-size:11px;color:var(--t3);margin-bottom:10px;">決算データ取得なし</div>';
+  }
+
+  html += '<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">直近ニュース</div>';
+  if (news && news.length>0) {
+    html += news.map(n=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-bottom:1px solid var(--border);">
+      <span style="color:var(--t3);">${n.date} [${n.source}]</span> ${n.title}</div>`).join('');
+  } else {
+    html += '<div style="font-size:11px;color:var(--t3);">ニュース取得なし</div>';
+  }
+  html += '</div>';
+  panel.innerHTML = html;
 }
 
 /* ══════════════════════════════════════════
    VIEW / MODAL / TOAST / LOADING
 ══════════════════════════════════════════ */
-function switchView(name,btn){
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  btn.classList.add('active');
-  if(name==='positions') renderPositions();
-}
+
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 function showToast(icon,msg){
   document.getElementById('t-icon').textContent=icon;
@@ -1435,6 +1737,306 @@ function showToast(icon,msg){
 }
 function showLoadingOverlay(msg){ document.getElementById('loading-text').textContent=msg||'処理中...'; document.getElementById('loading-overlay').classList.add('show'); }
 function hideLoadingOverlay(){ document.getElementById('loading-overlay').classList.remove('show'); }
+
+/* ══════════════════════════════════════════
+   動的WATCHLIST取得（出来高上位50銘柄＋米国株TOP20）
+══════════════════════════════════════════ */
+const US_TOP20 = [
+  {name:'NVIDIA',     ticker:'NVDA',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Apple',      ticker:'AAPL',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Microsoft',  ticker:'MSFT',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Tesla',      ticker:'TSLA',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Amazon',     ticker:'AMZN',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Meta',       ticker:'META',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Alphabet',   ticker:'GOOGL', market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'AMD',        ticker:'AMD',   market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Palantir',   ticker:'PLTR',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Broadcom',   ticker:'AVGO',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Salesforce', ticker:'CRM',   market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Netflix',    ticker:'NFLX',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'SuperMicro', ticker:'SMCI',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Coinbase',   ticker:'COIN',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'MicroStrategy',ticker:'MSTR',market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Arm Holdings',ticker:'ARM',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Snowflake',  ticker:'SNOW',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'CrowdStrike',ticker:'CRWD',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Uber',       ticker:'UBER',  market:'us', timing:'20:00-21:00', segment:'us'},
+  {name:'Spotify',    ticker:'SPOT',  market:'us', timing:'20:00-21:00', segment:'us'},
+];
+
+const JP_POOL = [
+  {name:'トヨタ自動車',      ticker:'7203.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ソニーグループ',    ticker:'6758.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'三菱UFJ',          ticker:'8306.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'キーエンス',        ticker:'6861.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'東京エレクトロン',  ticker:'8035.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'レーザーテック',    ticker:'6920.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ソフトバンクG',     ticker:'9984.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ファーストリテイリング',ticker:'9983.T',market:'jp',timing:'07:00-08:00',segment:'prime'},
+  {name:'リクルートHD',      ticker:'6098.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'信越化学工業',      ticker:'4063.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'三菱商事',          ticker:'8058.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'任天堂',            ticker:'7974.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'KDDI',             ticker:'9433.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'オリエンタルランド', ticker:'4661.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'ダイキン工業',      ticker:'6367.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'エムスリー',        ticker:'2413.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'オリックス',        ticker:'8591.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'三菱電機',          ticker:'6503.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'日立製作所',        ticker:'6501.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'NTT',              ticker:'9432.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'住友商事',          ticker:'8053.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'伊藤忠商事',        ticker:'8001.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'丸紅',              ticker:'8002.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'SMC',              ticker:'6273.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'富士通',            ticker:'6702.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'村田製作所',        ticker:'6981.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'TDK',              ticker:'6762.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'スクウェア・エニックス',ticker:'9684.T',market:'jp',timing:'07:00-08:00',segment:'prime'},
+  {name:'Zホールディングス', ticker:'4689.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'日本電産(ニデック)',  ticker:'6594.T', market:'jp', timing:'07:00-08:00', segment:'prime'},
+  {name:'タカラバイオ',      ticker:'4974.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'日本ピラー工業',    ticker:'6490.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'アルコニックス',    ticker:'3036.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'テクノホライゾン',  ticker:'6629.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'イトクロ',          ticker:'6049.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'ハウスコム',        ticker:'3275.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'明豊エンタープライズ',ticker:'8927.T',market:'jp',timing:'07:00-08:00',segment:'standard'},
+  {name:'グリーンズ',        ticker:'6547.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'コーセーアールイー', ticker:'3246.T', market:'jp', timing:'07:00-08:00', segment:'standard'},
+  {name:'日本インシュレーション',ticker:'5368.T',market:'jp',timing:'07:00-08:00',segment:'standard'},
+  {name:'フリー',            ticker:'4478.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ビジョナル',        ticker:'4194.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'カバー',            ticker:'5253.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'弁護士ドットコム',  ticker:'6027.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ウェルスナビ',      ticker:'7342.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'アストロスケール',  ticker:'186A.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'QPS研究所',        ticker:'5595.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'Sansan',           ticker:'4443.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ラクス',            ticker:'3923.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+  {name:'ギフティ',          ticker:'4449.T', market:'jp', timing:'07:00-08:00', segment:'growth'},
+];
+
+async function buildDynamicWatchlist() {
+  updateLoadingText('出来高ランキング取得中（東証全市場）...');
+  const jpWithVol = [];
+  await Promise.allSettled(JP_POOL.map(async stock => {
+    try {
+      const res = await yfetch(stock.ticker, '1d', '5d');
+      const {volume} = extractOHLC(res);
+      const vols = volume.filter(v => v != null && v > 0);
+      if (vols.length < 2) return;
+      const latestVol = vols[vols.length-1];
+      const avgVol    = vols.slice(0,-1).reduce((a,b)=>a+b,0)/(vols.length-1);
+      const ratio     = avgVol > 0 ? latestVol/avgVol : 1;
+      jpWithVol.push({...stock, code:'東証 '+stock.ticker.replace('.T',''), volRatio:ratio});
+    } catch {}
+  }));
+  jpWithVol.sort((a,b) => b.volRatio - a.volRatio);
+  const top50jp = jpWithVol.slice(0,50);
+  const usStocks = US_TOP20.map(s => ({...s, code:s.ticker}));
+  return [...top50jp, ...usStocks];
+}
+
+/* ══════════════════════════════════════════
+   マイリスト状態管理
+══════════════════════════════════════════ */
+let myList = JSON.parse(localStorage.getItem('compass_mylist') || '[]');
+let myListSignals = [];
+
+function saveMyList(){ localStorage.setItem('compass_mylist', JSON.stringify(myList)); }
+
+function renderMyListStocks(){
+  const c = document.getElementById('mylist-stock-rows');
+  if(!c) return;
+  if(myList.length===0){
+    c.innerHTML='<div class="empty" style="padding:28px 16px;"><div class="empty-icon" style="font-size:28px;">&#128203;</div><div class="empty-text">銘柄が登録されていません。</div></div>';
+    return;
+  }
+  const segColor={prime:'var(--accent2)',standard:'var(--amber2)',growth:'var(--purple2)',us:'var(--green2)'};
+  c.innerHTML = myList.map((s,i) =>
+    '<div style="display:grid;grid-template-columns:1fr 80px 100px 80px 50px;gap:0;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;">'
+    +'<div><span style="font-size:13px;font-weight:500;color:var(--t1);">'+s.name+'</span>'
+    +'<span style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:6px;">'+s.code+'</span></div>'
+    +'<div style="font-size:11.5px;color:var(--t2);">'+(s.market==='us'?'米国株':'日本株')+'</div>'
+    +'<div style="font-family:var(--mono);font-size:11.5px;color:var(--accent2);">'+s.ticker+'</div>'
+    +'<div><span style="font-size:10px;padding:2px 6px;border-radius:3px;background:'+(segColor[s.segment]||'var(--t4)')+'22;color:'+(segColor[s.segment]||'var(--t3)')+';border:1px solid '+(segColor[s.segment]||'var(--t4)')+'44;">'+(s.segment||'prime')+'</span></div>'
+    +'<div><button onclick="removeStockFromMyList('+i+')" style="padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--t3);font-size:11px;cursor:pointer;">削除</button></div>'
+    +'</div>'
+  ).join('');
+}
+
+function openAddStockModal(){
+  ['as-name','as-ticker','as-code'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('as-market').value='jp';
+  document.getElementById('add-stock-modal').classList.add('open');
+}
+
+function addStockToMyList(){
+  const name  =document.getElementById('as-name').value.trim();
+  const ticker=document.getElementById('as-ticker').value.trim().toUpperCase();
+  const code  =document.getElementById('as-code').value.trim();
+  const market=document.getElementById('as-market').value;
+  if(!ticker){showToast('⚠','Tickerは必須です');return;}
+  if(myList.find(s=>s.ticker===ticker)){showToast('⚠','すでに登録済みです');return;}
+  const isUs=market==='us';
+  myList.push({name:name||ticker,ticker,code:code||ticker,market,
+    timing:isUs?'20:00-21:00':'07:00-08:00',segment:isUs?'us':'prime'});
+  saveMyList();
+  closeModal('add-stock-modal');
+  renderMyListStocks();
+  showToast('&#10003;',(name||ticker)+' をマイリストに追加しました');
+}
+
+function removeStockFromMyList(idx){
+  const name=myList[idx]?.name||'';
+  myList.splice(idx,1);
+  saveMyList();
+  renderMyListStocks();
+  showToast('&#10003;',name+' を削除しました');
+}
+
+/* ══════════════════════════════════════════
+   マイリスト分析実行（ボタン押下時のみ）
+══════════════════════════════════════════ */
+async function runMyListAnalysis(){
+  if(myList.length===0){showToast('⚠','銘柄を追加してください');return;}
+  const btn =document.getElementById('mylist-run-btn');
+  const spin=document.getElementById('mylist-run-spin');
+  const icon=document.getElementById('mylist-run-icon');
+  btn.disabled=true; spin.style.display='block'; icon.style.display='none';
+  const thresh=settings.gpr||80;
+  const riseThresh=(settings.rise||5)/100;
+  const stopThresh=(settings.stop||3)/100;
+  try{
+    const techResults=[];
+    await Promise.allSettled(myList.map(async stock=>{
+      try{
+        const daily=await yfetch(stock.ticker,'1d','6mo');
+        const {close:dc,volume:dv}=extractOHLC(daily);
+        const vc=dc.filter(v=>v!=null);
+        if(vc.length<10) return;
+        let cur=vc[vc.length-1];
+        try{const m1=await yfetch(stock.ticker,'1m','1d');const{close:mc}=extractOHLC(m1);const vm=mc.filter(v=>v!=null);if(vm.length>0)cur=vm[vm.length-1];}catch{}
+        const isUs=stock.market==='us';
+        const rsi=calcRSI(vc);const{hist:macdH}=calcMACD(vc);
+        const ma25=calcMA(vc,25);const ma200=calcMA(vc,200);
+        const vols=dv.filter(v=>v!=null);const volR=volSurge(vols);
+        const prob=calcProb(rsi,macdH,volR,ma25,ma200,currentPeriod);
+        const tScore=calcScore(prob,volR,ma25.dev||0,gprVal,thresh);
+        const orderType=(rsi>65||volR>2.5)?'成行':'指値';
+        const orderPrice=orderType==='成行'?cur:+(cur*0.998).toFixed(isUs?2:0);
+        const tgtPct=riseThresh+(currentPeriod-2)*0.008;
+        techResults.push({name:stock.name,code:stock.code,ticker:stock.ticker,
+          market:stock.market,timing:stock.timing,segment:stock.segment||'prime',
+          price:isUs?+cur.toFixed(2):Math.round(cur),
+          order:orderType,orderAmt:orderPrice,
+          target:+(orderPrice*(1+tgtPct)).toFixed(isUs?2:0),
+          stop:+(orderPrice*(1-stopThresh)).toFixed(isUs?2:0),
+          prob,techScore:tScore,basePeriod:currentPeriod,
+          indicators:{rsi,macdHist:+macdH.toFixed(4),volRatio:volR,
+            ma25:{above:ma25.above,slope:+ma25.slope.toFixed(3)},
+            ma200:{above:ma200.above,slope:+ma200.slope.toFixed(3)}}});
+      }catch{}
+    }));
+    techResults.sort((a,b)=>b.techScore-a.techScore);
+    const enriched=await Promise.all(techResults.map(async s=>{
+      const[news,earnings]=await Promise.all([fetchNewsWithCache(s.name,s.ticker),fetchEarningsWithCache(s.ticker)]);
+      return{...s,news:news||[],earnings:earnings||null};
+    }));
+    const anthropicKey=localStorage.getItem('compass_anthropic_key');
+    let aiResults={};
+    if(anthropicKey&&enriched.length>0) aiResults=await runBulkAIAnalysis(enriched,anthropicKey);
+    myListSignals=enriched.map((s,i)=>{
+      const ai=aiResults[s.ticker]||null;
+      const aiProb=ai?.ai_prob??s.prob;
+      const aiScore=ai?.ai_score??s.techScore;
+      return{...s,rank:i+1,
+        prob:ai?Math.round(s.prob*0.5+aiProb*0.5):s.prob,
+        score:ai?Math.round(s.techScore*0.5+aiScore*0.5):s.techScore,
+        aiProb,aiScore,aiSummary:ai?.summary||null,
+        aiBullish:ai?.bullish||[],aiBearish:ai?.bearish||[],
+        aiRisk:ai?.risk||null,hasAI:!!ai};
+    });
+    myListSignals.sort((a,b)=>b.score-a.score);
+    renderMyListResult();
+    const now=new Date();
+    document.getElementById('mylist-scan-time').textContent=
+      '分析完了: '+now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})+' / '+myList.length+'銘柄';
+    document.getElementById('mylist-result-area').style.display='block';
+    showToast('&#10003;','マイリスト分析完了（'+myListSignals.length+'銘柄）');
+  }catch(e){showToast('⚠','分析エラー: '+e.message);}
+  finally{btn.disabled=false;spin.style.display='none';icon.style.display='inline';}
+}
+
+function renderMyListResult(){
+  const body=document.getElementById('mylist-rank-body');
+  if(!body) return;
+  const segColor={prime:'var(--accent2)',standard:'var(--amber2)',growth:'var(--purple2)',us:'var(--green2)'};
+  const segMap={prime:'P',standard:'S',growth:'G',us:'US'};
+  body.innerHTML=myListSignals.map((s,i)=>{
+    const isUs=s.market==='us';
+    const fp=v=>isUs?'$'+parseFloat(v).toFixed(2):Math.round(v).toLocaleString()+'円';
+    const pc=s.prob>=70?'var(--green2)':s.prob>=60?'var(--amber2)':'var(--t2)';
+    const sc=s.score>=85?'var(--accent)':s.score>=70?'var(--amber)':'var(--t3)';
+    const rc=s.aiRisk==='low'?'var(--green2)':s.aiRisk==='medium'?'var(--amber2)':'var(--red2)';
+    const rl=s.aiRisk==='low'?'低':s.aiRisk==='medium'?'中':'高';
+    const seg=s.segment||'prime';
+    const aiBadge=s.hasAI
+      ?'<span style="font-family:var(--mono);font-size:11px;font-weight:700;color:'+rc+';">'+s.aiProb+'%</span>'
+       +'<span style="font-size:9.5px;padding:1px 5px;border-radius:3px;background:'+rc+'22;color:'+rc+';border:1px solid '+rc+'44;margin-left:3px;">'+rl+'</span>'
+      :'<span style="font-size:10px;color:var(--t4);">—</span>';
+    return '<tr style="cursor:pointer;" onclick="openMyListDetail('+i+')">'
+      +'<td class="rk-num">'+String(i+1).padStart(2,'0')+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px;">'
+      +'<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:'+segColor[seg]+'22;color:'+segColor[seg]+';border:1px solid '+segColor[seg]+'44;">'+segMap[seg]+'</span>'
+      +'<span class="tk-name">'+s.name+'</span></div>'
+      +'<div class="tk-code">'+s.code+'</div></td>'
+      +'<td class="p-mono">'+fp(s.price)+'</td>'
+      +'<td><span class="prob-val" style="color:'+pc+'">'+s.prob+'%</span></td>'
+      +'<td><div class="score-row"><div class="score-track"><div class="score-fill" style="width:'+s.score+'%;background:'+sc+'"></div></div><span class="score-n">'+s.score+'</span></div></td>'
+      +'<td>'+aiBadge+'</td>'
+      +'<td><span class="ob '+(s.order==='指値'?'ob-lim':'ob-mkt')+'">'+(s.order==='指値'?'指値 '+fp(s.orderAmt):'成行')+'</span></td>'
+      +'<td><span class="tm-badge">'+s.timing+'</span></td>'
+      +'<td><button class="row-dbtn" onclick="event.stopPropagation();openMyListDetail('+i+')">詳細</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function openMyListDetail(idx){
+  const s=myListSignals[idx];
+  if(!s) return;
+  const dashBtn=document.querySelector('.nav-btn');
+  switchView('dashboard',dashBtn);
+  const tempIdx=SIGNALS.length;
+  SIGNALS.push(s);
+  _newsCache[s.ticker]=s.news||[];
+  _earningsCache[s.ticker]=s.earnings||null;
+  openDetail(tempIdx,null);
+}
+
+/* ══════════════════════════════════════════
+   動的WATCHLISTをrunScreeningに統合
+══════════════════════════════════════════ */
+window._dynamicWatchlistCache=null;
+window._dynamicWatchlistTs=0;
+const _origRunScreening=runScreening;
+
+runScreening=async function(){
+  const now=Date.now();
+  if(!window._dynamicWatchlistCache||(now-window._dynamicWatchlistTs)>5*60*1000){
+    const dynamic=await buildDynamicWatchlist();
+    window._dynamicWatchlistCache=dynamic;
+    window._dynamicWatchlistTs=now;
+  }
+  const original=[...WATCHLIST];
+  WATCHLIST.length=0;
+  window._dynamicWatchlistCache.forEach(s=>WATCHLIST.push(s));
+  await _origRunScreening();
+  WATCHLIST.length=0;
+  original.forEach(s=>WATCHLIST.push(s));
+};
+
 </script>
 </body>
 </html>
