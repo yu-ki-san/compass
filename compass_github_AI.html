@@ -450,12 +450,9 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
           <div style="font-size:11px;margin-top:4px;" id="anthropic-key-status"></div>
         </div>
         <div class="setting-card">
-          <div class="setting-card-title">📰 NewsAPI キー（ニュース連携）</div>
-          <div class="form-group" style="margin-top:9px;">
-            <input type="password" class="f-input" id="st-news-key" placeholder="32文字のキー..." autocomplete="off">
-          </div>
-          <div style="font-size:11px;color:var(--t3);margin-top:5px;">newsapi.org で無料取得。このブラウザのみに保存されます。</div>
-          <div style="font-size:11px;margin-top:4px;" id="news-key-status"></div>
+          <div class="setting-card-title">📰 ニュース連携</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:6px;">Googleニュース RSS を自動取得します（APIキー不要・無料）。</div>
+          <div style="font-size:11px;color:var(--green2);margin-top:4px;">✓ 設定不要で自動的に動作します</div>
         </div>
         <button class="save-btn" onclick="saveSettings()">設定を保存</button>
       </div>
@@ -1180,11 +1177,11 @@ function applySettings(){
   document.getElementById('st-stop').value=settings.stop||3;
   // APIキーの保存状態表示（値は表示しない）
   const ak = localStorage.getItem('compass_anthropic_key');
-  const nk = localStorage.getItem('compass_news_key');
+
   document.getElementById('anthropic-key-status').textContent = ak ? '✓ 保存済み' : '未設定';
   document.getElementById('anthropic-key-status').style.color = ak ? 'var(--green2)' : 'var(--t3)';
-  document.getElementById('news-key-status').textContent = nk ? '✓ 保存済み' : '未設定';
-  document.getElementById('news-key-status').style.color = nk ? 'var(--green2)' : 'var(--t3)';
+
+
 }
 
 function saveSettings(){
@@ -1199,65 +1196,84 @@ function saveSettings(){
   updatePeriodDisplay(currentPeriod);
   // APIキー保存（localStorage、GitHubには残らない）
   const ak = document.getElementById('st-anthropic-key').value.trim();
-  const nk = document.getElementById('st-news-key').value.trim();
+
   if (ak) localStorage.setItem('compass_anthropic_key', ak);
-  if (nk) localStorage.setItem('compass_news_key', nk);
+  // ニュースはGoogleニュースRSSのため保存不要
   document.getElementById('st-anthropic-key').value='';
-  document.getElementById('st-news-key').value='';
+
   applySettings();
   showToast('✓','設定を保存しました');
 }
 
 /* ══════════════════════════════════════════
-   決算データ取得（Yahoo Finance）
+   決算データ取得（Yahoo Finance v10 + v11フォールバック）
 ══════════════════════════════════════════ */
 async function fetchEarnings(ticker) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=earnings,financialData,defaultKeyStatistics`;
-    const res = await fetch(`${WORKER}?url=${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(10000)});
-    if (!res.ok) return null;
-    const json = await res.json();
-    const q = json?.quoteSummary?.result?.[0];
-    if (!q) return null;
-    const fd = q.financialData || {};
-    const dk = q.defaultKeyStatistics || {};
-    const ea = q.earnings?.earningsChart || {};
-    // 直近決算のEPS予想 vs 実績
-    const quarterly = ea.quarterly || [];
-    const latest = quarterly[quarterly.length-1] || {};
-    return {
-      revenueGrowth:    fd.revenueGrowth?.fmt   || 'N/A',
-      earningsGrowth:   fd.earningsGrowth?.fmt  || 'N/A',
-      returnOnEquity:   fd.returnOnEquity?.fmt   || 'N/A',
-      profitMargins:    fd.profitMargins?.fmt    || 'N/A',
-      forwardPE:        dk.forwardPE?.fmt        || 'N/A',
-      epsActual:        latest.actual?.fmt       || 'N/A',
-      epsEstimate:      latest.estimate?.fmt     || 'N/A',
-      epsSurprise:      latest.date              || 'N/A',
-      earningsBeat:     latest.actual?.raw > latest.estimate?.raw,
-    };
-  } catch { return null; }
+  // 複数モジュールを試行（v10が失敗した場合v11にフォールバック）
+  const modulesList = [
+    'financialData,defaultKeyStatistics,earnings',
+    'financialData,defaultKeyStatistics',
+    'financialData',
+  ];
+  for (const modules of modulesList) {
+    try {
+      const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}&corsDomain=finance.yahoo.com`;
+      const res = await fetch(`${WORKER}?url=${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(12000)});
+      if (!res.ok) continue;
+      const json = await res.json();
+      const q = json?.quoteSummary?.result?.[0];
+      if (!q) continue;
+      const fd = q.financialData || {};
+      const dk = q.defaultKeyStatistics || {};
+      const ea = q.earnings?.earningsChart || {};
+      const quarterly = ea.quarterly || [];
+      const latest = quarterly[quarterly.length-1] || {};
+      // 有効なデータが1つでもあれば返す
+      const hasData = fd.revenueGrowth || fd.returnOnEquity || fd.profitMargins;
+      if (!hasData) continue;
+      return {
+        revenueGrowth:  fd.revenueGrowth?.fmt  || 'N/A',
+        earningsGrowth: fd.earningsGrowth?.fmt  || 'N/A',
+        returnOnEquity: fd.returnOnEquity?.fmt  || 'N/A',
+        profitMargins:  fd.profitMargins?.fmt   || 'N/A',
+        forwardPE:      dk.forwardPE?.fmt       || 'N/A',
+        epsActual:      latest.actual?.fmt      || 'N/A',
+        epsEstimate:    latest.estimate?.fmt    || 'N/A',
+        epsDate:        latest.date             || 'N/A',
+        earningsBeat:   (latest.actual?.raw ?? 0) > (latest.estimate?.raw ?? 0),
+        currentRatio:   fd.currentRatio?.fmt    || 'N/A',
+        debtToEquity:   fd.debtToEquity?.fmt    || 'N/A',
+        targetPrice:    fd.targetMeanPrice?.fmt || 'N/A',
+      };
+    } catch { continue; }
+  }
+  return null;
 }
 
 /* ══════════════════════════════════════════
-   ニュース取得（NewsAPI経由）
+   ニュース取得（Googleニュース RSS → Workerでパース）
+   ※NewsAPI無料プランは本番サイトから呼び出し不可のため
+     Googleニュース RSSに切り替え（完全無料・制限なし）
 ══════════════════════════════════════════ */
 async function fetchNews(stockName, ticker) {
-  const newsKey = localStorage.getItem('compass_news_key');
-  if (!newsKey) return [];
   try {
-    const q   = encodeURIComponent(`${stockName} OR ${ticker} 株`);
-    const url = `https://newsapi.org/v2/everything?q=${q}&language=jp&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`;
-    // NewsAPIはCORSを許可しているため直接fetch
-    const res = await fetch(url, {signal:AbortSignal.timeout(8000)});
+    const q   = encodeURIComponent(`${stockName} ${ticker}`);
+    const rss = `https://news.google.com/rss/search?q=${q}&hl=ja&gl=JP&ceid=JP:ja`;
+    const res = await fetch(`${WORKER}?url=${encodeURIComponent(rss)}`,{signal:AbortSignal.timeout(10000)});
     if (!res.ok) return [];
-    const json = await res.json();
-    return (json.articles || []).slice(0,5).map(a=>({
-      title:   a.title,
-      source:  a.source?.name || '',
-      url:     a.url,
-      date:    a.publishedAt?.slice(0,10) || '',
-    }));
+    const text = await res.text();
+    // XMLをパース
+    const parser = new DOMParser();
+    const doc    = parser.parseFromString(text, 'text/xml');
+    const items  = Array.from(doc.querySelectorAll('item')).slice(0,5);
+    return items.map(item => {
+      const title  = item.querySelector('title')?.textContent  || '';
+      const link   = item.querySelector('link')?.textContent   || '';
+      const pubDate= item.querySelector('pubDate')?.textContent|| '';
+      const source = item.querySelector('source')?.textContent || 'Googleニュース';
+      const date   = pubDate ? new Date(pubDate).toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'}) : '';
+      return { title: title.replace(/ - .+$/, ''), source, url: link, date };
+    }).filter(n => n.title);
   } catch { return []; }
 }
 
@@ -1366,7 +1382,7 @@ async function loadAIAnalysis(signal) {
     ? news.map(n=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-bottom:1px solid var(--border);">
         <span style="color:var(--t3);">${n.date} [${n.source}]</span> ${n.title}
       </div>`).join('')
-    : `<div style="font-size:11px;color:var(--t3);">ニュース取得なし（NewsAPIキー未設定 or 無料枠の制限）</div>`;
+    : `<div style="font-size:11px;color:var(--t3);">ニュース取得なし（該当記事が見つかりませんでした）</div>`;
   const earningsHtml = earnings
     ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
         ${[
