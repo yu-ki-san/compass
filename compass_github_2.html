@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>compass — 株取引支援システム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Mono:wght@400;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#080d18;--bg2:#0f1825;--bg3:#172030;--bg4:#1e2c40;--bg5:#243550;
+  --border:rgba(80,120,180,.16);--border2:rgba(80,120,180,.30);--border3:rgba(80,120,180,.48);
+  --t1:#deeafb;--t2:#7a9dc4;--t3:#3d5d82;--t4:#1e3350;
+  --accent:#2f78f0;--accent2:#5a9bff;
+  --green:#0fb574;--green2:#2ad98e;
+  --red:#e63c3c;--red2:#f47070;
+  --amber:#d98c0e;--amber2:#f5b224;
+  --purple:#7c4df0;--purple2:#a47cf5;
+  --mono:'Space Mono',monospace;--sans:'DM Sans','Noto Sans JP',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);display:flex;flex-direction:column;min-height:100vh;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:3px;}
+
+/* HEADER */
+header{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;gap:12px;}
+.logo{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent2);letter-spacing:.12em;flex-shrink:0;}
+.compass-icon{width:24px;height:24px;border:2px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;}
+.needle{width:2px;height:8px;background:var(--accent2);border-radius:1px;position:absolute;bottom:50%;transform-origin:bottom center;transform:rotate(-35deg);}
+.needle-s{width:2px;height:6px;background:var(--t4);border-radius:1px;position:absolute;top:50%;transform-origin:top center;transform:rotate(-35deg);}
+nav.hnav{display:flex;gap:2px;}
+.nav-btn{padding:5px 12px;border-radius:6px;border:none;background:transparent;color:var(--t2);font-family:var(--sans);font-size:12.5px;cursor:pointer;transition:all .14s;}
+.nav-btn:hover{background:var(--bg3);color:var(--t1);}
+.nav-btn.active{background:var(--bg4);color:var(--accent2);}
+.hright{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.htime{font-family:var(--mono);font-size:10.5px;color:var(--t3);}
+.api-status{font-size:10.5px;font-family:var(--mono);white-space:nowrap;}
+
+/* LAYOUT */
+.app{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:200px;background:var(--bg2);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0;overflow-y:auto;}
+.sb-sec{padding:0 10px;margin-bottom:22px;}
+.sb-lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);font-weight:500;margin-bottom:6px;padding:0 6px;}
+.sb-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--t2);transition:all .12s;position:relative;}
+.sb-item:hover{background:var(--bg3);color:var(--t1);}
+.sb-item.active{background:var(--bg3);color:var(--accent2);}
+.sb-item.active::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:3px;background:var(--accent);border-radius:0 2px 2px 0;}
+.main{flex:1;overflow-y:auto;padding:20px 24px;}
+
+/* STATUS BANNER */
+.status-banner{border-radius:10px;padding:13px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+.status-banner.safe{background:rgba(15,181,116,.07);border:1px solid rgba(15,181,116,.28);}
+.status-banner.warn{background:rgba(217,140,14,.07);border:1px solid rgba(217,140,14,.28);}
+.status-banner.danger{background:rgba(230,60,60,.07);border:1px solid rgba(230,60,60,.28);}
+.s-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.s-dot.safe{background:var(--green2);box-shadow:0 0 7px var(--green);}
+.s-dot.warn{background:var(--amber2);box-shadow:0 0 7px var(--amber);}
+.s-dot.danger{background:var(--red2);box-shadow:0 0 7px var(--red);}
+.s-text{flex:1;}
+.s-title{font-size:13.5px;font-weight:500;}
+.s-sub{font-size:11px;color:var(--t2);margin-top:2px;}
+.s-badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;}
+.s-badge.safe{background:rgba(15,181,116,.14);color:var(--green2);}
+.s-badge.warn{background:rgba(217,140,14,.14);color:var(--amber2);}
+.s-badge.danger{background:rgba(230,60,60,.14);color:var(--red2);}
+
+/* RECALC BAR */
+.recalc-bar{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 16px;margin-bottom:16px;flex-wrap:wrap;}
+.period-label{font-size:11.5px;color:var(--t2);white-space:nowrap;}
+.period-val{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent2);min-width:52px;}
+input[type=range].pslider{flex:1;min-width:80px;height:4px;appearance:none;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer;}
+input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent2);border:2px solid var(--bg2);cursor:pointer;}
+.rsep{width:1px;height:26px;background:var(--border2);flex-shrink:0;}
+.recalc-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(47,120,240,.12);border:1px solid rgba(47,120,240,.36);border-radius:7px;color:var(--accent2);font-size:12.5px;font-weight:500;font-family:var(--sans);cursor:pointer;transition:all .14s;white-space:nowrap;flex-shrink:0;}
+.recalc-btn:hover{background:rgba(47,120,240,.22);}
+.recalc-btn:disabled{opacity:.4;cursor:not-allowed;}
+.rspin{width:12px;height:12px;border:2px solid rgba(90,155,255,.3);border-top-color:var(--accent2);border-radius:50%;animation:spin .7s linear infinite;display:none;}
+.recalc-btn.loading .rspin{display:block;}
+.recalc-btn.loading .ricon{display:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.cd-text{font-size:10.5px;color:var(--t3);font-family:var(--mono);}
+
+/* INDEX ROW */
+.idx-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;}
+.idx-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.idx-name{font-size:10px;color:var(--t3);margin-bottom:3px;}
+.idx-val{font-family:var(--mono);font-size:13.5px;font-weight:700;color:var(--t1);}
+.idx-chg{font-size:10px;margin-top:2px;font-family:var(--mono);}
+.idx-ts{font-size:9px;color:var(--t4);margin-top:2px;font-family:var(--mono);}
+.up{color:var(--green2);}.dn{color:var(--red2);}.fl{color:var(--t3);}
+
+/* RISK ROW */
+.risk-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.risk-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 17px;}
+.risk-title{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:11px;}
+.gpr-num{font-family:var(--mono);font-size:24px;font-weight:700;margin-bottom:3px;}
+.gpr-sub{font-size:11px;color:var(--t2);margin-bottom:9px;}
+.gauge-track{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:5px;}
+.gauge-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green) 0%,var(--amber) 55%,var(--red) 85%);}
+.gauge-labels{display:flex;justify-content:space-between;font-size:9.5px;color:var(--t3);}
+.tr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.tr-item{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 9px;}
+.tr-idx{font-size:9.5px;color:var(--t3);margin-bottom:3px;}
+.tr-arrow{font-size:15px;margin-bottom:2px;}
+.tr-ma{font-size:9px;font-family:var(--mono);}
+.verdict{font-size:10.5px;color:var(--t3);margin-top:7px;}
+
+/* SEC HEADER */
+.sec-hdr{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px;}
+.sec-title{font-size:12.5px;font-weight:500;color:var(--t2);letter-spacing:.04em;}
+.sec-meta{font-size:10px;color:var(--t3);font-family:var(--mono);}
+
+/* RANK TABLE */
+.rank-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;}
+.rank-wrap table{width:100%;border-collapse:collapse;}
+.rank-wrap th{font-size:9.5px;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;padding:8px 13px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg3);}
+.rank-wrap td{padding:9px 13px;font-size:12.5px;border-bottom:1px solid rgba(80,120,180,.06);}
+.rank-wrap tr:last-child td{border-bottom:none;}
+.rank-wrap tbody tr{cursor:pointer;transition:background .1s;}
+.rank-wrap tbody tr:hover td{background:var(--bg3);}
+.rank-wrap tbody tr.sel td{background:rgba(47,120,240,.08);}
+.rk-num{font-family:var(--mono);font-size:10px;color:var(--t3);}
+.tk-name{font-size:12.5px;font-weight:500;color:var(--t1);}
+.tk-code{font-size:9.5px;color:var(--t3);font-family:var(--mono);margin-top:1px;}
+.tk-period{font-size:9.5px;color:var(--accent2);margin-top:1px;font-family:var(--mono);}
+.p-mono{font-family:var(--mono);font-size:12px;}
+.ob{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;}
+.ob-lim{background:rgba(47,120,240,.14);color:var(--accent2);}
+.ob-mkt{background:rgba(124,77,240,.14);color:var(--purple2);}
+.tm-badge{font-size:10.5px;font-family:var(--mono);color:var(--amber2);}
+.prob-val{font-family:var(--mono);font-size:12.5px;font-weight:700;}
+.score-row{display:flex;align-items:center;gap:6px;}
+.score-track{flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.score-fill{height:100%;border-radius:2px;}
+.score-n{font-size:10px;font-family:var(--mono);color:var(--t2);min-width:22px;text-align:right;}
+.row-dbtn{padding:3px 8px;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--t2);font-size:10.5px;cursor:pointer;font-family:var(--sans);transition:all .12s;}
+.row-dbtn:hover{background:var(--bg4);color:var(--t1);}
+
+/* DETAIL PANEL */
+.detail-panel{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:18px 20px;margin-bottom:18px;display:none;animation:fadeIn .2s ease;}
+.detail-panel.open{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}
+.dp-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3px;}
+.dp-name{font-size:17px;font-weight:700;color:var(--t1);}
+.dp-code{font-size:10.5px;color:var(--t3);font-family:var(--mono);margin-top:2px;}
+.dp-note{font-size:11.5px;color:var(--accent2);margin:10px 0 14px;padding:5px 11px;background:rgba(47,120,240,.08);border-radius:5px;border-left:3px solid var(--accent);}
+.close-btn{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--t2);padding:3px 8px;cursor:pointer;font-size:15px;line-height:1;}
+.plan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px;}
+.plan-card{background:var(--bg3);border-radius:7px;padding:12px;border:1px solid var(--border);}
+.plan-lbl{font-size:9.5px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+.plan-val{font-family:var(--mono);font-size:16px;font-weight:700;}
+.plan-sub{font-size:10px;color:var(--t3);margin-top:2px;}
+.plan-val.entry{color:var(--t1);}.plan-val.tgt{color:var(--green2);}.plan-val.stp{color:var(--red2);}.plan-val.tim{color:var(--amber2);font-size:12px;}
+.buy-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(15,181,116,.1);border:1px solid rgba(15,181,116,.36);border-radius:7px;color:var(--green2);font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .14s;}
+.buy-btn:hover{background:rgba(15,181,116,.18);}
+.dp-hint{font-size:11px;color:var(--t3);}
+
+/* CHART */
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px;}
+
+/* POSITIONS */
+.pos-hdr-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+.pos-recalc-btn{display:flex;align-items:center;gap:6px;padding:6px 13px;background:rgba(124,77,240,.1);border:1px solid rgba(124,77,240,.34);border-radius:7px;color:var(--purple2);font-size:12.5px;cursor:pointer;font-family:var(--sans);transition:all .14s;white-space:nowrap;}
+.pos-recalc-btn:hover{background:rgba(124,77,240,.18);}
+.pos-recalc-btn:disabled{opacity:.4;cursor:not-allowed;}
+.prspin{width:11px;height:11px;border:2px solid rgba(164,124,245,.3);border-top-color:var(--purple2);border-radius:50%;animation:spin .7s linear infinite;display:none;}
+.pos-recalc-btn.loading .prspin{display:block;}
+.pos-recalc-btn.loading .pricon{display:none;}
+.pos-list{display:flex;flex-direction:column;gap:10px;}
+.pos-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 18px;transition:border-color .2s;}
+.pos-card.urgent{border-color:rgba(217,140,14,.38);}
+.pos-card.expired{border-color:rgba(230,60,60,.38);}
+.pc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.pc-name{font-size:14px;font-weight:600;color:var(--t1);}
+.pc-code{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px;}
+.pc-pl{font-family:var(--mono);font-size:14px;font-weight:700;}
+.pc-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:11px;}
+.pc-item-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;}
+.pc-item-val{font-family:var(--mono);font-size:12px;color:var(--t2);}
+.cd-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border-radius:7px;border:1px solid var(--border);flex-wrap:wrap;}
+.cd-lbl{font-size:11px;color:var(--t3);white-space:nowrap;}
+.cd-val{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap;}
+.prog-track{flex:1;min-width:60px;height:4px;background:var(--bg4);border-radius:3px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:3px;transition:width .8s;}
+.rec-lbl{font-size:9.5px;color:var(--t3);white-space:nowrap;}
+.rec-price{font-family:var(--mono);font-size:12.5px;font-weight:700;white-space:nowrap;}
+.alert-btn{padding:3px 8px;background:rgba(217,140,14,.09);border:1px solid rgba(217,140,14,.28);border-radius:5px;color:var(--amber2);font-size:10.5px;cursor:pointer;font-family:var(--sans);flex-shrink:0;}
+.del-btn{padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--t3);font-size:10.5px;cursor:pointer;font-family:var(--sans);flex-shrink:0;}
+.del-btn:hover{color:var(--red2);border-color:rgba(230,60,60,.28);}
+
+/* SETTINGS */
+.settings-wrap{max-width:540px;}
+.setting-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 17px;margin-bottom:13px;}
+.setting-card-title{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:11px;}
+.save-btn{padding:7px 18px;background:rgba(47,120,240,.1);border:1px solid rgba(47,120,240,.36);border-radius:7px;color:var(--accent2);font-family:var(--sans);font-size:13px;cursor:pointer;}
+.save-btn:hover{background:rgba(47,120,240,.18);}
+
+/* FORMS */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group.span2{grid-column:span 2;}
+.f-label{font-size:11px;color:var(--t3);}
+.f-input{background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--t1);font-family:var(--sans);font-size:12.5px;padding:7px 10px;outline:none;transition:border .12s;}
+.f-input:focus{border-color:var(--accent);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border3);border-radius:13px;padding:22px 26px;min-width:320px;max-width:460px;width:90%;animation:fadeIn .2s ease;}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:6px;}
+.modal-body{font-size:13px;color:var(--t2);line-height:1.7;margin-bottom:18px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.m-btn{padding:6px 16px;border-radius:7px;border:1px solid var(--border);font-family:var(--sans);font-size:12px;cursor:pointer;}
+.m-btn.primary{background:rgba(15,181,116,.12);border-color:rgba(15,181,116,.36);color:var(--green2);}
+.m-btn.secondary{background:var(--bg3);color:var(--t2);}
+
+/* LOADING */
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(8,13,24,.75);z-index:250;flex-direction:column;align-items:center;justify-content:center;gap:13px;}
+.loading-overlay.show{display:flex;}
+.loading-spinner{width:38px;height:38px;border:3px solid rgba(47,120,240,.2);border-top-color:var(--accent2);border-radius:50%;animation:spin .8s linear infinite;}
+.loading-text{font-size:13.5px;color:var(--t2);font-family:var(--mono);}
+
+/* EMPTY */
+.empty{text-align:center;padding:50px 16px;color:var(--t3);}
+.empty-icon{font-size:40px;opacity:.28;margin-bottom:9px;}
+.empty-text{font-size:13px;line-height:1.7;}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:11px 16px;font-size:12.5px;color:var(--t1);display:flex;align-items:center;gap:8px;opacity:0;transform:translateY(8px);transition:all .22s;pointer-events:none;z-index:400;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+/* VIEWS */
+.view{display:none;}.view.active{display:block;}
+.add-pos-btn{padding:6px 13px;background:rgba(47,120,240,.09);border:1px solid rgba(47,120,240,.3);border-radius:7px;color:var(--accent2);font-size:12.5px;cursor:pointer;font-family:var(--sans);transition:all .12s;white-space:nowrap;}
+.add-pos-btn:hover{background:rgba(47,120,240,.17);}
+.flex-row{display:flex;align-items:center;gap:9px;}
+
+/* MOBILE */
+@media(max-width:700px){
+  .sidebar{display:none;}
+  .idx-row{grid-template-columns:repeat(3,1fr);}
+  .risk-row{grid-template-columns:1fr;}
+  .plan-grid{grid-template-columns:1fr 1fr;}
+  .pc-grid{grid-template-columns:repeat(3,1fr);}
+  .rank-wrap th:nth-child(5),.rank-wrap td:nth-child(5),
+  .rank-wrap th:nth-child(7),.rank-wrap td:nth-child(7){display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">データ取得中...</div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="compass-icon"><div class="needle"></div><div class="needle-s"></div></div>
+    compass
+  </div>
+  <nav class="hnav">
+    <button class="nav-btn active" onclick="switchView('dashboard',this)">ダッシュボード</button>
+    <button class="nav-btn" onclick="switchView('positions',this)">保有ポジション</button>
+    <button class="nav-btn" onclick="switchView('settings',this)">設定</button>
+  </nav>
+  <div class="hright">
+    <div class="api-status" id="api-status" style="color:var(--t3);">○ 接続確認中...</div>
+    <div class="htime" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div class="app">
+  <nav class="sidebar">
+    <div class="sb-sec">
+      <div class="sb-lbl">市場フィルター</div>
+      <div class="sb-item active" onclick="filterMarket('all',this)">◎ 全市場</div>
+      <div class="sb-item" onclick="filterMarket('jp',this)">🗾 日本株</div>
+      <div class="sb-item" onclick="filterMarket('us',this)">🇺🇸 米国株</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">並び替え</div>
+      <div class="sb-item" onclick="sortBy('score',this)">★ スコア順</div>
+      <div class="sb-item" onclick="sortBy('prob',this)">% 上昇確率順</div>
+      <div class="sb-item" onclick="sortBy('vol',this)">∿ 低ボラ優先</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">データ情報</div>
+      <div style="padding:0 6px;font-size:11px;color:var(--t3);line-height:2.2;">
+        更新<br><span style="color:var(--t2);font-family:var(--mono);" id="last-update">--:--</span><br>
+        遅延<br><span style="color:var(--t2);font-family:var(--mono);">約15-20分</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <div class="status-banner safe" id="status-banner">
+        <div class="s-dot safe" id="s-dot"></div>
+        <div class="s-text">
+          <div class="s-title" id="s-title">市場環境：確認中</div>
+          <div class="s-sub" id="s-sub">データを取得しています...</div>
+        </div>
+        <div class="s-badge safe" id="s-badge">確認中</div>
+      </div>
+
+      <!-- RECALC BAR -->
+      <div class="recalc-bar">
+        <span class="period-label">予測期間</span>
+        <input type="range" class="pslider" min="1" max="5" value="2" step="1" id="period-slider" oninput="onPeriodChange(this.value)">
+        <span class="period-val" id="period-val">2営業日</span>
+        <div class="rsep"></div>
+        <button class="recalc-btn" id="recalc-btn" onclick="triggerRecalc()">
+          <div class="rspin"></div><span class="ricon">↻</span> 今すぐ再計算
+        </button>
+        <span class="cd-text" id="cd-text"></span>
+      </div>
+
+      <!-- INDEX ROW -->
+      <div class="idx-row">
+        <div class="idx-card"><div class="idx-name">日経平均</div><div class="idx-val" id="idx-nk">--</div><div class="idx-chg fl" id="idx-nk-c">--</div><div class="idx-ts" id="idx-nk-t"></div></div>
+        <div class="idx-card"><div class="idx-name">TOPIX ETF</div><div class="idx-val" id="idx-tp">--</div><div class="idx-chg fl" id="idx-tp-c">--</div><div class="idx-ts" id="idx-tp-t"></div></div>
+        <div class="idx-card"><div class="idx-name">グロース250</div><div class="idx-val" id="idx-gr">--</div><div class="idx-chg fl" id="idx-gr-c">--</div><div class="idx-ts" id="idx-gr-t"></div></div>
+        <div class="idx-card"><div class="idx-name">S&amp;P 500</div><div class="idx-val" id="idx-sp">--</div><div class="idx-chg fl" id="idx-sp-c">--</div><div class="idx-ts" id="idx-sp-t"></div></div>
+        <div class="idx-card"><div class="idx-name">NASDAQ</div><div class="idx-val" id="idx-nq">--</div><div class="idx-chg fl" id="idx-nq-c">--</div><div class="idx-ts" id="idx-nq-t"></div></div>
+      </div>
+
+      <!-- RISK ROW -->
+      <div class="risk-row">
+        <div class="risk-card">
+          <div class="risk-title">地政学リスク（VIX代替）</div>
+          <div class="gpr-num" id="gpr-num" style="color:var(--green2);">--</div>
+          <div class="gpr-sub">閾値: <span id="gpr-thresh-disp">80</span> 以上でスキップ</div>
+          <div class="gauge-track"><div class="gauge-fill" id="gpr-fill" style="width:0%"></div></div>
+          <div class="gauge-labels"><span>0</span><span>100</span><span>200</span></div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-title">移動平均線トレンド判定</div>
+          <div class="tr-grid" id="tr-grid">
+            <div class="tr-item"><div class="tr-idx">日経</div><div class="tr-arrow" id="tr-nk-a">—</div><div class="tr-ma" id="tr-nk-m" style="color:var(--t3);">取得中</div></div>
+            <div class="tr-item"><div class="tr-idx">TOPIX</div><div class="tr-arrow" id="tr-tp-a">—</div><div class="tr-ma" id="tr-tp-m" style="color:var(--t3);">取得中</div></div>
+            <div class="tr-item"><div class="tr-idx">グロース</div><div class="tr-arrow" id="tr-gr-a">—</div><div class="tr-ma" id="tr-gr-m" style="color:var(--t3);">取得中</div></div>
+            <div class="tr-item"><div class="tr-idx">S&amp;P500</div><div class="tr-arrow" id="tr-sp-a">—</div><div class="tr-ma" id="tr-sp-m" style="color:var(--t3);">取得中</div></div>
+            <div class="tr-item"><div class="tr-idx">NASDAQ</div><div class="tr-arrow" id="tr-nq-a">—</div><div class="tr-ma" id="tr-nq-m" style="color:var(--t3);">取得中</div></div>
+          </div>
+          <div class="verdict" id="verdict">総合判定: <span style="color:var(--t3);">データ取得中...</span></div>
+        </div>
+      </div>
+
+      <div class="sec-hdr">
+        <div class="sec-title">上昇期待値 TOP 10 — シグナル一覧</div>
+        <div class="sec-meta" id="scan-time">スキャン待機中</div>
+      </div>
+
+      <!-- DETAIL PANEL -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="dp-hdr">
+          <div><div class="dp-name" id="dp-name">—</div><div class="dp-code" id="dp-code">—</div></div>
+          <button class="close-btn" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="dp-note" id="dp-note">—</div>
+        <div class="plan-grid">
+          <div class="plan-card"><div class="plan-lbl">注文価格</div><div class="plan-val entry" id="dp-entry">—</div><div class="plan-sub" id="dp-type">—</div></div>
+          <div class="plan-card"><div class="plan-lbl">利確ライン</div><div class="plan-val tgt" id="dp-target">—</div><div class="plan-sub" id="dp-tpct">—</div></div>
+          <div class="plan-card"><div class="plan-lbl">損切りライン</div><div class="plan-val stp" id="dp-stop">—</div><div class="plan-sub" id="dp-spct">—</div></div>
+          <div class="plan-card"><div class="plan-lbl">発注推奨時間帯</div><div class="plan-val tim" id="dp-timing">—</div><div class="plan-sub" id="dp-market">—</div></div>
+        </div>
+        <div class="flex-row">
+          <button class="buy-btn" onclick="openAddFromDetail()">✓ この条件で購入した（ポジション登録）</button>
+          <span class="dp-hint">保有ポジション管理に追加されます</span>
+        </div>
+      </div>
+
+      <div class="rank-wrap">
+        <table>
+          <thead><tr><th>順</th><th>銘柄</th><th>現在値</th><th>確率</th><th>スコア</th><th>注文方法</th><th>時間帯</th><th></th></tr></thead>
+          <tbody id="rank-body"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--t3);">データ取得中...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="chart-card">
+        <div class="sec-hdr"><div class="sec-title">上昇確率 ／ スコア分布</div></div>
+        <div style="position:relative;height:190px;"><canvas id="probChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- POSITIONS -->
+    <div class="view" id="view-positions">
+      <div class="pos-hdr-row">
+        <div class="sec-title">保有ポジション管理</div>
+        <div class="flex-row">
+          <button class="pos-recalc-btn" id="pos-recalc-btn" onclick="triggerPosRecalc()">
+            <div class="prspin"></div><span class="pricon">↻</span> 売却条件を再計算
+          </button>
+          <button class="add-pos-btn" onclick="openAddModal()">＋ ポジション追加</button>
+        </div>
+      </div>
+      <div class="pos-list" id="pos-list"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <div class="settings-wrap">
+        <div class="sec-hdr"><div class="sec-title">システム設定</div></div>
+        <div class="setting-card">
+          <div class="setting-card-title">GPR リスク閾値（VIX換算）</div>
+          <div style="display:flex;align-items:center;gap:11px;margin-top:7px;">
+            <input type="range" min="40" max="150" value="80" step="5" id="st-gpr"
+              oninput="document.getElementById('st-gpr-val').textContent=this.value;document.getElementById('gpr-thresh-disp').textContent=this.value;" style="flex:1;accent-color:var(--accent2);">
+            <span style="font-family:var(--mono);font-size:14px;color:var(--t1);min-width:30px;" id="st-gpr-val">80</span>
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:5px;">この値を超えるとシグナル提示を自動スキップします</div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-card-title">デフォルト予測期間</div>
+          <div style="display:flex;align-items:center;gap:11px;margin-top:7px;">
+            <input type="range" min="1" max="5" value="2" step="1" id="st-period"
+              oninput="document.getElementById('st-period-val').textContent=this.value+'営業日';" style="flex:1;accent-color:var(--accent2);">
+            <span style="font-family:var(--mono);font-size:14px;color:var(--t1);min-width:58px;" id="st-period-val">2営業日</span>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-card-title">再計算クールダウン（分）</div>
+          <div style="display:flex;align-items:center;gap:11px;margin-top:7px;">
+            <input type="range" min="1" max="10" value="3" step="1" id="st-cd"
+              oninput="document.getElementById('st-cd-val').textContent=this.value+'分';" style="flex:1;accent-color:var(--accent2);">
+            <span style="font-family:var(--mono);font-size:14px;color:var(--t1);min-width:34px;" id="st-cd-val">3分</span>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-card-title">スクリーニング条件</div>
+          <div class="form-grid" style="margin-top:9px;margin-bottom:0;">
+            <div class="form-group"><label class="f-label">目標上昇率（%）</label><input type="number" class="f-input" value="5" min="1" max="20" id="st-rise"></div>
+            <div class="form-group"><label class="f-label">損切り許容幅（%）</label><input type="number" class="f-input" value="3" min="1" max="10" id="st-stop"></div>
+          </div>
+        </div>
+        <button class="save-btn" onclick="saveSettings()">設定を保存</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ADD POSITION MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">ポジション追加</div>
+    <div class="modal-body">購入した銘柄の情報を入力してください。出口戦略を逆算・提示します。</div>
+    <div class="form-grid">
+      <div class="form-group"><label class="f-label">銘柄名</label><input type="text" class="f-input" id="p-name" placeholder="例: ソニーグループ"></div>
+      <div class="form-group"><label class="f-label">銘柄コード</label><input type="text" class="f-input" id="p-code" placeholder="例: 東証 6758"></div>
+      <div class="form-group"><label class="f-label">Yahoo ticker</label><input type="text" class="f-input" id="p-ticker" placeholder="例: 6758.T / NVDA"></div>
+      <div class="form-group"><label class="f-label">購入価格</label><input type="number" class="f-input" id="p-price" placeholder="例: 13380"></div>
+      <div class="form-group"><label class="f-label">購入株数</label><input type="number" class="f-input" id="p-qty" placeholder="例: 100"></div>
+      <div class="form-group"><label class="f-label">利確ライン</label><input type="number" class="f-input" id="p-target" placeholder="例: 14060"></div>
+      <div class="form-group"><label class="f-label">損切りライン</label><input type="number" class="f-input" id="p-stop" placeholder="例: 13000"></div>
+      <div class="form-group"><label class="f-label">売却期限</label><input type="datetime-local" class="f-input" id="p-deadline"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="m-btn secondary" onclick="closeModal('add-modal')">キャンセル</button>
+      <button class="m-btn primary" onclick="addPosition()">登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALERT MODAL -->
+<div class="modal-overlay" id="alert-modal">
+  <div class="modal">
+    <div class="modal-title" id="alert-title">⚠ 売却期限アラート</div>
+    <div class="modal-body" id="alert-body"></div>
+    <div class="modal-actions">
+      <button class="m-btn secondary" onclick="closeModal('alert-modal')">後で確認</button>
+      <button class="m-btn primary" onclick="closeModal('alert-modal')">確認しました</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="t-icon">✓</span><span id="t-msg"></span></div>
+
+<script>
+/* ══════════════════════════════════════════
+   Yahoo Finance — CORSプロキシ経由で直接取得
+   プロキシ: 複数フォールバック対応（allorigins / corsproxy.io）
+══════════════════════════════════════════ */
+// CORSプロキシ複数フォールバック（GitHub Pages対応）
+const PROXIES = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+];
+const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+
+async function yfetch(ticker, interval='1d', range='6mo') {
+  const url = `${YF}${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+  let lastErr;
+  for (const makeProxy of PROXIES) {
+    try {
+      const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(14000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const result = json?.chart?.result?.[0];
+      if (!result) throw new Error('データなし');
+      return result;
+    } catch(e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+
+function extractOHLC(result) {
+  const ts     = result.timestamp || [];
+  const quotes = result.indicators?.quote?.[0] || {};
+  const close  = quotes.close  || [];
+  const volume = quotes.volume || [];
+  return { ts, close, volume };
+}
+
+/* ══════════════════════════════════════════
+   テクニカル指標（JS実装）
+══════════════════════════════════════════ */
+function calcRSI(closes, period=14) {
+  if (closes.length < period+1) return 50;
+  let gains=0, losses=0;
+  for (let i=closes.length-period; i<closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    if (d>0) gains+=d; else losses+=Math.abs(d);
+  }
+  const ag=gains/period, al=losses/period;
+  if (al===0) return 100;
+  return Math.round(100 - 100/(1+ag/al));
+}
+
+function calcMACD(closes) {
+  const ema = (arr, span) => {
+    const k=2/(span+1); let e=arr[0];
+    for (let i=1;i<arr.length;i++) e=arr[i]*k+e*(1-k);
+    return e;
+  };
+  const ema12=ema(closes,12), ema26=ema(closes,26);
+  const macd=ema12-ema26;
+  return { macd, hist: macd };
+}
+
+function calcMA(closes, period) {
+  if (closes.length < period) return { above:false, slope:0, val:0 };
+  const slice = closes.slice(-period);
+  const val   = slice.reduce((a,b)=>a+b,0)/period;
+  const prev  = closes.length>=period+5
+    ? closes.slice(-period-5,-5).reduce((a,b)=>a+b,0)/period : val;
+  const slope = (val-prev)/prev*100;
+  const cur   = closes[closes.length-1];
+  return { above: cur>val, slope, val: Math.round(val) };
+}
+
+function volSurge(volumes, window=20) {
+  if (volumes.length<window+1) return 1;
+  const recent = volumes[volumes.length-1] || 0;
+  const avg    = volumes.slice(-window-1,-1).reduce((a,b)=>a+(b||0),0)/window;
+  return avg>0 ? +(recent/avg).toFixed(2) : 1;
+}
+
+function calcProb(rsi, macdHist, volRatio, ma25, ma200, period) {
+  let s=50;
+  if (rsi>=45&&rsi<=65) s+=8; else if (rsi<45) s+=4; else if (rsi>70) s-=8;
+  s += macdHist>0 ? 6 : -4;
+  if (volRatio>=2) s+=10; else if (volRatio>=1.5) s+=6; else if (volRatio<0.8) s-=5;
+  if (ma25.above) { s+=5; if (ma25.slope>0.1) s+=3; } else s-=5;
+  s += ma200.above ? 4 : -4;
+  s += (period-2)*2;
+  return Math.max(10,Math.min(95,Math.round(s)));
+}
+
+function calcScore(prob, volRatio, ma25Dev, gpr, gprThresh) {
+  let s = prob*0.6 + Math.min(20,volRatio*8);
+  s += Math.abs(ma25Dev)<3 ? 10 : 0;
+  s -= Math.max(0,(gpr-40)/Math.max(1,gprThresh-40)*10);
+  return Math.max(10,Math.min(99,Math.round(s)));
+}
+
+/* ══════════════════════════════════════════
+   状態管理
+══════════════════════════════════════════ */
+const WATCHLIST = [
+  {name:'ソニーグループ',  code:'東証 6758',    ticker:'6758.T', market:'jp', timing:'07:00-08:00'},
+  {name:'任天堂',         code:'東証 7974',    ticker:'7974.T', market:'jp', timing:'07:00-08:00'},
+  {name:'NVIDIA',         code:'NASDAQ: NVDA', ticker:'NVDA',   market:'us', timing:'20:00-21:00'},
+  {name:'レーザーテック',  code:'東証 6920',    ticker:'6920.T', market:'jp', timing:'07:00-08:00'},
+  {name:'リクルートHD',    code:'東証 6098',    ticker:'6098.T', market:'jp', timing:'07:00-08:00'},
+  {name:'Apple',          code:'NASDAQ: AAPL', ticker:'AAPL',   market:'us', timing:'20:00-21:00'},
+  {name:'三菱商事',        code:'東証 8058',    ticker:'8058.T', market:'jp', timing:'07:00-08:00'},
+  {name:'東京エレクトロン',code:'東証 8035',    ticker:'8035.T', market:'jp', timing:'07:00-08:00'},
+  {name:'Microsoft',      code:'NASDAQ: MSFT', ticker:'MSFT',   market:'us', timing:'20:00-21:00'},
+  {name:'OLC',            code:'東証 4661',    ticker:'4661.T', market:'jp', timing:'07:00-08:00'},
+  {name:'トヨタ',          code:'東証 7203',    ticker:'7203.T', market:'jp', timing:'07:00-08:00'},
+  {name:'キーエンス',      code:'東証 6861',    ticker:'6861.T', market:'jp', timing:'07:00-08:00'},
+  {name:'Amazon',         code:'NASDAQ: AMZN', ticker:'AMZN',   market:'us', timing:'20:00-21:00'},
+  {name:'Meta',           code:'NASDAQ: META', ticker:'META',   market:'us', timing:'20:00-21:00'},
+  {name:'信越化学',        code:'東証 4063',    ticker:'4063.T', market:'jp', timing:'07:00-08:00'},
+];
+
+const INDEX_LIST = [
+  {key:'nikkei',   ticker:'^N225',  id:'nk', label:'日経平均', isUs:false},
+  {key:'topix',    ticker:'1306.T', id:'tp', label:'TOPIX ETF',isUs:false},
+  {key:'growth250',ticker:'2516.T', id:'gr', label:'グロース', isUs:false},
+  {key:'sp500',    ticker:'^GSPC',  id:'sp', label:'S&P 500',  isUs:true},
+  {key:'nasdaq',   ticker:'^IXIC',  id:'nq', label:'NASDAQ',   isUs:true},
+];
+
+const TR_LIST = [
+  {id:'nk', ticker:'^N225'},
+  {id:'tp', ticker:'1306.T'},
+  {id:'gr', ticker:'2516.T'},
+  {id:'sp', ticker:'^GSPC'},
+  {id:'nq', ticker:'^IXIC'},
+];
+
+let SIGNALS = [];
+let positions    = JSON.parse(localStorage.getItem('compass_pos') || '[]');
+let settings     = JSON.parse(localStorage.getItem('compass_cfg') || '{"gpr":80,"period":2,"cd":3,"rise":5,"stop":3}');
+let currentPeriod= settings.period || 2;
+let currentMarket= 'all';
+let currentSort  = 'score';
+let selIdx       = -1;
+let chartInst    = null;
+let cdRemain     = 0;
+let cdTimer      = null;
+let gprVal       = 45;
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  updateClock(); setInterval(updateClock,1000);
+  applySettings();
+  document.getElementById('period-slider').value = currentPeriod;
+  updatePeriodDisplay(currentPeriod);
+  renderPositions();
+  setDefaultDeadline();
+  setTimeout(checkAlerts,4000);
+  setInterval(checkAlerts,60000);
+
+  showLoadingOverlay('市場データ取得中...');
+  try {
+    await Promise.all([fetchIndices(), fetchVIX()]);
+    await runScreening();
+    document.getElementById('api-status').textContent = '● Yahoo Finance 接続中';
+    document.getElementById('api-status').style.color = 'var(--green2)';
+  } catch(e) {
+    document.getElementById('api-status').textContent = '⚠ 取得エラー';
+    document.getElementById('api-status').style.color = 'var(--red2)';
+    showToast('⚠','データ取得に失敗しました。再計算ボタンで再試行してください。');
+  } finally {
+    hideLoadingOverlay();
+  }
+  setInterval(()=>{ fetchIndices(); fetchVIX(); }, 5*60*1000); // 5分ごと自動更新
+});
+
+/* ══════════════════════════════════════════
+   CLOCK
+══════════════════════════════════════════ */
+function updateClock() {
+  const n=new Date();
+  document.getElementById('clock').textContent =
+    n.toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit',weekday:'short'}) + ' ' +
+    n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+/* ══════════════════════════════════════════
+   FETCH: 指数
+══════════════════════════════════════════ */
+async function fetchIndices() {
+  const trData = {};
+  await Promise.allSettled(INDEX_LIST.map(async m => {
+    try {
+      const res = await yfetch(m.ticker, '1d', '5d');
+      const {close, ts} = extractOHLC(res);
+      const validClose = close.filter(v=>v!=null);
+      if (validClose.length<2) return;
+      const price = validClose[validClose.length-1];
+      const prev  = validClose[validClose.length-2];
+      const chg   = (price-prev)/prev*100;
+      const up    = chg>=0;
+      const fmtP  = m.isUs
+        ? price.toLocaleString('en-US',{maximumFractionDigits:2})
+        : Math.round(price).toLocaleString('ja-JP');
+      document.getElementById(`idx-${m.id}`).textContent = fmtP;
+      document.getElementById(`idx-${m.id}-c`).textContent = (up?'▲ +':'▼ ')+Math.abs(chg).toFixed(2)+'%';
+      document.getElementById(`idx-${m.id}-c`).className = 'idx-chg '+(up?'up':'dn');
+      const lastTs = ts[ts.length-1];
+      if (lastTs) {
+        const d=new Date(lastTs*1000);
+        document.getElementById(`idx-${m.id}-t`).textContent =
+          d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+      }
+      // MA判定用データ保存
+      trData[m.id] = validClose;
+    } catch {}
+  }));
+
+  // MA判定（各指数の日足で25日線）
+  const trKeys = ['nk','tp','gr','sp','nq'];
+  let upCount=0;
+  trKeys.forEach(id => {
+    const closes = trData[id];
+    if (!closes || closes.length < 26) return;
+    const ma25 = calcMA(closes, 25);
+    const arrow = ma25.above ? (ma25.slope>0.05?'↗':'→') : (ma25.slope<-0.05?'↘':'→');
+    const color = ma25.above ? 'var(--green2)' : 'var(--red2)';
+    const label = ma25.above ? '25日線上' : '25日線下';
+    document.getElementById(`tr-${id}-a`).textContent = arrow;
+    document.getElementById(`tr-${id}-m`).textContent = label;
+    document.getElementById(`tr-${id}-m`).style.color = color;
+    if (ma25.above) upCount++;
+  });
+  const total = trKeys.length;
+  const vEl = document.getElementById('verdict');
+  if (upCount >= 4) vEl.innerHTML = '総合判定: <span style="color:var(--green2);font-weight:500;">上昇トレンド優勢 ／ スクリーニング実行</span>';
+  else if (upCount >= 2) vEl.innerHTML = '総合判定: <span style="color:var(--amber2);font-weight:500;">混合相場 ／ 慎重に判断</span>';
+  else vEl.innerHTML = '総合判定: <span style="color:var(--red2);font-weight:500;">下落トレンド ／ スキップ推奨</span>';
+
+  document.getElementById('last-update').textContent =
+    new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ══════════════════════════════════════════
+   FETCH: VIX（GPR代替）
+══════════════════════════════════════════ */
+async function fetchVIX() {
+  try {
+    const res = await yfetch('^VIX','1d','5d');
+    const {close} = extractOHLC(res);
+    const validClose = close.filter(v=>v!=null);
+    const vix = validClose[validClose.length-1];
+    gprVal = +(vix * 2.5).toFixed(1);
+    updateGprDisplay(gprVal);
+  } catch { updateGprDisplay(gprVal); }
+}
+
+/* ══════════════════════════════════════════
+   SCREENING
+══════════════════════════════════════════ */
+async function runScreening() {
+  const thresh = settings.gpr || 80;
+  if (gprVal >= thresh) {
+    setStatusBanner('danger','地合い：選定スキップ中',`GPRリスク高騰（${gprVal} ≥ 閾値${thresh}）のためスキップ`,'危険');
+    SIGNALS=[]; applyFilterSort(); renderRanking(); renderChart(); return;
+  }
+
+  const results = [];
+  const riseThresh = (settings.rise||5)/100;
+  const stopThresh = (settings.stop||3)/100;
+
+  await Promise.allSettled(WATCHLIST.map(async stock => {
+    try {
+      // 日足6ヶ月（テクニカル用）
+      const daily = await yfetch(stock.ticker,'1d','6mo');
+      const {close: dc, volume: dv} = extractOHLC(daily);
+      const validClose = dc.filter(v=>v!=null);
+      if (validClose.length < 30) return;
+
+      // 現在値: 分足1日（約15-20分遅延）
+      let currentPrice = validClose[validClose.length-1];
+      try {
+        const min1 = await yfetch(stock.ticker,'1m','1d');
+        const {close:mc} = extractOHLC(min1);
+        const validMin = mc.filter(v=>v!=null);
+        if (validMin.length>0) currentPrice = validMin[validMin.length-1];
+      } catch {}
+
+      const isUs = stock.market==='us';
+      const rsi  = calcRSI(validClose);
+      const {hist:macdH} = calcMACD(validClose);
+      const ma25 = calcMA(validClose,25);
+      const ma200= calcMA(validClose,200);
+      const vols = dv.filter(v=>v!=null);
+      const volR = volSurge(vols);
+      const prob = calcProb(rsi,macdH,volR,ma25,ma200,currentPeriod);
+      const score= calcScore(prob,volR,ma25.dev||0,gprVal,thresh);
+
+      if (prob < 40) return;
+
+      const orderType  = (rsi>65||volR>2.5) ? '成行' : '指値';
+      const orderPrice = orderType==='成行' ? currentPrice : +(currentPrice*0.998).toFixed(isUs?2:0);
+      const tgtPct     = riseThresh + (currentPeriod-2)*0.008;
+
+      results.push({
+        name:stock.name, code:stock.code, ticker:stock.ticker,
+        market:stock.market, timing:stock.timing,
+        price: isUs ? +currentPrice.toFixed(2) : Math.round(currentPrice),
+        order:orderType, orderAmt:orderPrice,
+        target:+(orderPrice*(1+tgtPct)).toFixed(isUs?2:0),
+        stop:  +(orderPrice*(1-stopThresh)).toFixed(isUs?2:0),
+        prob, score, basePeriod:currentPeriod,
+      });
+    } catch {}
+  }));
+
+  results.sort((a,b)=>b.score-a.score);
+  SIGNALS = results.slice(0,10).map((s,i)=>({...s,rank:i+1}));
+
+  const now=new Date();
+  document.getElementById('scan-time').textContent =
+    `スキャン: ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} ／ 予測期間: ${currentPeriod}営業日`;
+
+  if (SIGNALS.length===0) {
+    setStatusBanner('warn','シグナルなし','スクリーニング条件を満たす銘柄が見つかりませんでした','注意');
+  } else {
+    setStatusBanner('safe','市場環境：投資推奨',`${SIGNALS.length}銘柄のシグナルを検出 ／ リアルタイムデータ取得完了`,'安全');
+  }
+  applyFilterSort(); renderRanking(); renderChart();
+}
+
+/* ══════════════════════════════════════════
+   PERIOD / RECALC
+══════════════════════════════════════════ */
+function onPeriodChange(v) {
+  currentPeriod = parseInt(v);
+  updatePeriodDisplay(currentPeriod);
+  clearTimeout(window._pd);
+  window._pd = setTimeout(()=>triggerRecalc(true),500);
+}
+
+function updatePeriodDisplay(n) {
+  document.getElementById('period-val').textContent = n+'営業日';
+}
+
+async function triggerRecalc(silent=false) {
+  const btn = document.getElementById('recalc-btn');
+  if (btn.disabled) return;
+  btn.disabled=true; btn.classList.add('loading');
+  if (!silent) showLoadingOverlay('再計算中...');
+  const steps=['VIX取得中...','指数データ取得中...','スクリーニング実行中...','スコア算出中...'];
+  let si=0;
+  const sv=setInterval(()=>{ if(!silent&&si<steps.length) document.getElementById('loading-text').textContent=steps[si++]; },500);
+  try {
+    await Promise.all([fetchIndices(), fetchVIX()]);
+    await runScreening();
+    if (!silent) showToast('↻',`再計算完了 — ${currentPeriod}営業日ベース`);
+  } catch(e) {
+    showToast('⚠','取得エラー: '+e.message);
+  } finally {
+    clearInterval(sv); hideLoadingOverlay();
+    btn.classList.remove('loading');
+    startCD(settings.cd||3);
+  }
+}
+
+function startCD(min) {
+  cdRemain=min*60;
+  const btn=document.getElementById('recalc-btn');
+  clearInterval(cdTimer);
+  cdTimer=setInterval(()=>{
+    cdRemain--;
+    const m=Math.floor(cdRemain/60), s=cdRemain%60;
+    document.getElementById('cd-text').textContent=`CD: ${m}:${String(s).padStart(2,'0')}`;
+    if(cdRemain<=0){ clearInterval(cdTimer); document.getElementById('cd-text').textContent=''; btn.disabled=false; }
+  },1000);
+}
+
+/* ══════════════════════════════════════════
+   GPR / STATUS
+══════════════════════════════════════════ */
+function updateGprDisplay(val) {
+  const thresh=settings.gpr||80;
+  document.getElementById('gpr-num').textContent=val.toFixed(1);
+  document.getElementById('gpr-fill').style.width=Math.min(100,val/2)+'%';
+  const color=val<50?'var(--green2)':val<thresh?'var(--amber2)':'var(--red2)';
+  document.getElementById('gpr-num').style.color=color;
+  document.getElementById('gpr-thresh-disp').textContent=thresh;
+}
+
+function setStatusBanner(type,title,sub,badge) {
+  document.getElementById('status-banner').className='status-banner '+type;
+  document.getElementById('s-dot').className='s-dot '+type;
+  document.getElementById('s-title').textContent=title;
+  document.getElementById('s-sub').textContent=sub;
+  document.getElementById('s-badge').textContent=badge;
+  document.getElementById('s-badge').className='s-badge '+type;
+}
+
+/* ══════════════════════════════════════════
+   FILTER / SORT
+══════════════════════════════════════════ */
+function filterMarket(mkt,el) {
+  currentMarket=mkt;
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  applyFilterSort(); renderRanking(); renderChart();
+}
+function sortBy(key,el) {
+  currentSort=key;
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  applyFilterSort(); renderRanking(); renderChart();
+}
+function applyFilterSort() {
+  let list=currentMarket==='all'?[...SIGNALS]:SIGNALS.filter(s=>s.market===currentMarket);
+  if(currentSort==='prob') list.sort((a,b)=>b.prob-a.prob);
+  else if(currentSort==='vol') list.sort((a,b)=>a.prob-b.prob);
+  else list.sort((a,b)=>b.score-a.score);
+  window._dl=list;
+}
+function getDL(){ if(!window._dl) applyFilterSort(); return window._dl; }
+
+/* ══════════════════════════════════════════
+   RANKING
+══════════════════════════════════════════ */
+function renderRanking() {
+  const list=getDL();
+  const body=document.getElementById('rank-body');
+  if(list.length===0){ body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--t3);">条件に合う銘柄がありません</td></tr>'; return; }
+  body.innerHTML=list.map((s,i)=>{
+    const isUs=s.market==='us';
+    const fp=v=>isUs?'$'+parseFloat(v).toFixed(2):Math.round(v).toLocaleString()+'円';
+    const pc=s.prob>=70?'var(--green2)':s.prob>=60?'var(--amber2)':'var(--t2)';
+    const sc=s.score>=85?'var(--accent)':s.score>=70?'var(--amber)':'var(--t3)';
+    const gi=SIGNALS.indexOf(s);
+    return `<tr class="${selIdx===gi?'sel':''}" onclick="openDetail(${gi},this)">
+      <td class="rk-num">${String(i+1).padStart(2,'0')}</td>
+      <td><div class="tk-name">${s.name}</div><div class="tk-code">${s.code}</div><div class="tk-period">${currentPeriod}日以内 +${settings.rise||5}%予測</div></td>
+      <td class="p-mono">${fp(s.price)}</td>
+      <td><span class="prob-val" style="color:${pc}">${s.prob}%</span></td>
+      <td><div class="score-row"><div class="score-track"><div class="score-fill" style="width:${s.score}%;background:${sc}"></div></div><span class="score-n">${s.score}</span></div></td>
+      <td><span class="ob ${s.order==='指値'?'ob-lim':'ob-mkt'}">${s.order==='指値'?'指値 '+fp(s.orderAmt):'成行'}</span></td>
+      <td><span class="tm-badge">${s.timing}</span></td>
+      <td><button class="row-dbtn" onclick="event.stopPropagation();openDetail(${gi})">詳細</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   DETAIL PANEL
+══════════════════════════════════════════ */
+function openDetail(idx,row) {
+  const s=SIGNALS[idx]; if(!s) return;
+  selIdx=idx;
+  const isUs=s.market==='us';
+  const fp=v=>isUs?'$'+parseFloat(v).toFixed(2):Math.round(v).toLocaleString()+'円';
+  const tp=((s.target-s.orderAmt)/s.orderAmt*100).toFixed(1);
+  const sp=((s.stop-s.orderAmt)/s.orderAmt*100).toFixed(1);
+  document.getElementById('dp-name').textContent=s.name;
+  document.getElementById('dp-code').textContent=s.code;
+  document.getElementById('dp-note').textContent=`この銘柄は${currentPeriod}営業日以内に${settings.rise||5}%以上の上昇が期待されます（上昇確率: ${s.prob}%）`;
+  document.getElementById('dp-entry').textContent=fp(s.orderAmt);
+  document.getElementById('dp-type').textContent=s.order+'注文';
+  document.getElementById('dp-target').textContent=fp(s.target);
+  document.getElementById('dp-tpct').textContent='+'+tp+'%';
+  document.getElementById('dp-stop').textContent=fp(s.stop);
+  document.getElementById('dp-spct').textContent=sp+'%';
+  document.getElementById('dp-timing').textContent=s.timing;
+  document.getElementById('dp-market').textContent=isUs?'米国株（夜間プレマーケット）':'日本株（寄付前予約）';
+  // モーダル事前入力
+  document.getElementById('p-name').value=s.name;
+  document.getElementById('p-code').value=s.code;
+  document.getElementById('p-ticker').value=s.ticker;
+  document.getElementById('p-price').value=s.orderAmt;
+  document.getElementById('p-target').value=s.target;
+  document.getElementById('p-stop').value=s.stop;
+  setDefaultDeadline();
+  const panel=document.getElementById('detail-panel');
+  panel.classList.add('open');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.querySelectorAll('#rank-body tr').forEach(r=>r.classList.remove('sel'));
+  if(row) row.classList.add('sel');
+}
+function closeDetail(){ document.getElementById('detail-panel').classList.remove('open'); selIdx=-1; document.querySelectorAll('#rank-body tr').forEach(r=>r.classList.remove('sel')); }
+
+/* ══════════════════════════════════════════
+   CHART
+══════════════════════════════════════════ */
+function renderChart() {
+  const list=getDL().slice(0,10);
+  const canvas=document.getElementById('probChart');
+  if(!canvas) return;
+  if(chartInst){ chartInst.destroy(); chartInst=null; }
+  if(list.length===0) return;
+  chartInst=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:list.map(s=>s.name.length>5?s.name.slice(0,5)+'…':s.name),
+      datasets:[
+        {label:'上昇確率(%)',data:list.map(s=>s.prob),
+         backgroundColor:list.map(s=>s.prob>=70?'rgba(15,181,116,.75)':s.prob>=60?'rgba(245,178,36,.75)':'rgba(80,120,180,.5)'),
+         borderRadius:3,borderSkipped:false,yAxisID:'y'},
+        {label:'スコア',data:list.map(s=>s.score),type:'line',
+         borderColor:'rgba(90,155,255,.7)',backgroundColor:'rgba(90,155,255,.1)',
+         borderWidth:2,pointRadius:3,pointBackgroundColor:'#5a9bff',tension:.3,fill:false,yAxisID:'y2'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+(c.datasetIndex===0?'%':'')}}},
+      scales:{
+        x:{ticks:{color:'#3d5d82',font:{size:10}},grid:{color:'rgba(80,120,180,.07)'}},
+        y:{min:40,max:100,ticks:{color:'#3d5d82',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(80,120,180,.07)'}},
+        y2:{position:'right',min:40,max:100,ticks:{color:'#2f78f0',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   POSITIONS
+══════════════════════════════════════════ */
+function renderPositions() {
+  const list=document.getElementById('pos-list');
+  if(!list) return;
+  if(positions.length===0){
+    list.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">保有ポジションはまだ登録されていません。<br>ダッシュボードのシグナルから「この条件で購入した」ボタンで追加できます。</div></div>';
+    return;
+  }
+  list.innerHTML=positions.map((p,i)=>buildPosCard(p,i)).join('');
+}
+
+function buildPosCard(p,idx){
+  const now=new Date(), dl=new Date(p.deadline), pu=new Date(p.purchaseDate);
+  const msL=dl-now, msT=dl-pu;
+  const hL=Math.max(0,msL/3600000);
+  const prog=Math.min(100,Math.max(0,(msT-msL)/msT*100));
+  const expired=hL<=0, urgent=!expired&&hL<=24;
+  let recPrice,recColor,recLabel;
+  if(expired){ recPrice='成行売却を推奨'; recColor='var(--red2)'; recLabel='期限超過'; }
+  else if(urgent){ recPrice=fmtP(p.buyPrice*1.008,p.isUs); recColor='var(--amber2)'; recLabel='微益撤退指値'; }
+  else{ recPrice=fmtP(p.target,p.isUs); recColor='var(--green2)'; recLabel='目標指値'; }
+  const hh=Math.floor(hL), mm=Math.floor((hL-hh)*60);
+  const cdStr=expired?'期限超過':`残り ${hh}時間 ${mm}分`;
+  const progC=expired?'var(--red)':urgent?'var(--amber)':'var(--accent)';
+  const cdC=expired?'var(--red2)':urgent?'var(--amber2)':'var(--t2)';
+  const cardC=expired?'pos-card expired':urgent?'pos-card urgent':'pos-card';
+  const lp=p.livePrice!=null?p.livePrice:null;
+  const pl=lp!=null?(lp-p.buyPrice)*p.qty:null;
+  const plPct=lp!=null?((lp/p.buyPrice-1)*100).toFixed(2):null;
+  const plC=pl==null?'var(--t3)':pl>=0?'var(--green2)':'var(--red2)';
+  const plS=pl!=null&&pl>=0?'+':'';
+  const plTxt=pl!=null?`${plS}${fmtP(Math.abs(pl),p.isUs)} (${plS}${plPct}%)`:'— 取得中';
+  const dlFmt=dl.toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'})+' '+dl.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  return `<div class="${cardC}">
+    <div class="pc-top">
+      <div><div class="pc-name">${p.name}</div><div class="pc-code">${p.code}</div></div>
+      <div class="pc-pl" style="color:${plC}">${plTxt}</div>
+    </div>
+    <div class="pc-grid">
+      <div><div class="pc-item-lbl">購入価格</div><div class="pc-item-val">${fmtP(p.buyPrice,p.isUs)}</div></div>
+      <div><div class="pc-item-lbl">現在値</div><div class="pc-item-val" style="color:${plC}">${lp!=null?fmtP(lp,p.isUs):'—'}</div></div>
+      <div><div class="pc-item-lbl">株数</div><div class="pc-item-val">${p.qty}株</div></div>
+      <div><div class="pc-item-lbl">利確</div><div class="pc-item-val" style="color:var(--green2)">${fmtP(p.target,p.isUs)}</div></div>
+      <div><div class="pc-item-lbl">損切り</div><div class="pc-item-val" style="color:var(--red2)">${fmtP(p.stop,p.isUs)}</div></div>
+      <div><div class="pc-item-lbl">期限</div><div class="pc-item-val">${dlFmt}</div></div>
+    </div>
+    <div class="cd-row">
+      <span class="cd-lbl">残り:</span>
+      <span class="cd-val" style="color:${cdC}">${cdStr}</span>
+      <div class="prog-track"><div class="prog-fill" style="width:${prog.toFixed(1)}%;background:${progC}"></div></div>
+      <span class="rec-lbl">${recLabel}:</span>
+      <span class="rec-price" style="color:${recColor}">${recPrice}</span>
+      <button class="alert-btn" onclick="showAlert('${p.name}','${recPrice}')">🔔</button>
+      <button class="del-btn" onclick="removePos(${idx})">削除</button>
+    </div>
+  </div>`;
+}
+
+function fmtP(v,isUs){ return isUs?'$'+parseFloat(v).toFixed(2):Math.round(v).toLocaleString()+'円'; }
+
+async function triggerPosRecalc() {
+  const btn=document.getElementById('pos-recalc-btn');
+  if(btn.disabled) return;
+  btn.disabled=true; btn.classList.add('loading');
+  try {
+    const tickers=[...new Set(positions.map(p=>p.ticker).filter(Boolean))];
+    await Promise.allSettled(tickers.map(async ticker=>{
+      try {
+        const res=await yfetch(ticker,'1m','1d');
+        const {close}=extractOHLC(res);
+        const vc=close.filter(v=>v!=null);
+        if(vc.length>0){
+          const lp=vc[vc.length-1];
+          positions.forEach(p=>{ if(p.ticker===ticker) p.livePrice=lp; });
+        }
+      } catch {}
+    }));
+    localStorage.setItem('compass_pos',JSON.stringify(positions));
+    renderPositions();
+    showToast('↻','保有ポジションの現在値を更新しました');
+  } catch(e){ showToast('⚠','エラー: '+e.message); }
+  finally{ btn.classList.remove('loading'); btn.disabled=false; }
+}
+
+function setDefaultDeadline(){
+  const d=new Date(); d.setDate(d.getDate()+currentPeriod); d.setHours(15,0,0,0);
+  const el=document.getElementById('p-deadline');
+  if(el&&!el.value) el.value=d.toISOString().slice(0,16);
+}
+
+function openAddFromDetail(){ document.getElementById('p-qty').value=''; document.getElementById('add-modal').classList.add('open'); }
+function openAddModal(){
+  ['p-name','p-code','p-ticker','p-price','p-target','p-stop'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-qty').value='';
+  document.getElementById('p-deadline').value='';
+  setDefaultDeadline();
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function addPosition(){
+  const name=document.getElementById('p-name').value.trim();
+  const code=document.getElementById('p-code').value.trim();
+  const ticker=document.getElementById('p-ticker').value.trim();
+  const buyPrice=parseFloat(document.getElementById('p-price').value);
+  const qty=parseInt(document.getElementById('p-qty').value)||100;
+  const target=parseFloat(document.getElementById('p-target').value);
+  const stop=parseFloat(document.getElementById('p-stop').value);
+  const deadline=document.getElementById('p-deadline').value;
+  if(!name||!buyPrice||!deadline){ showToast('⚠','必須項目を入力してください'); return; }
+  const isUs=/NASDAQ|NYSE|\$/.test(code)||(!code.includes('東証')&&!ticker.includes('.T'));
+  positions.push({name,code,ticker,buyPrice,qty,target,stop,deadline,isUs,purchaseDate:new Date().toISOString(),livePrice:null});
+  localStorage.setItem('compass_pos',JSON.stringify(positions));
+  closeModal('add-modal');
+  showToast('✓',`${name} をポジションに追加しました`);
+  setTimeout(()=>switchView('positions',document.querySelectorAll('.nav-btn')[1]),500);
+}
+
+function removePos(idx){
+  if(!confirm('削除しますか？')) return;
+  positions.splice(idx,1);
+  localStorage.setItem('compass_pos',JSON.stringify(positions));
+  renderPositions(); showToast('✓','削除しました');
+}
+
+function checkAlerts(){
+  positions.forEach(p=>{
+    const h=(new Date(p.deadline)-new Date())/3600000;
+    if(h>0&&h<=24) showAlert(p.name,fmtP(p.buyPrice*1.008,p.isUs));
+  });
+}
+function showAlert(name,price){
+  document.getElementById('alert-title').textContent=`⚠ 売却期限アラート — ${name}`;
+  document.getElementById('alert-body').textContent=`間もなく保有期限です。修正指値 ${price} での売却をご検討ください。`;
+  document.getElementById('alert-modal').classList.add('open');
+}
+
+/* ══════════════════════════════════════════
+   SETTINGS
+══════════════════════════════════════════ */
+function applySettings(){
+  document.getElementById('st-gpr').value=settings.gpr||80;
+  document.getElementById('st-gpr-val').textContent=settings.gpr||80;
+  document.getElementById('gpr-thresh-disp').textContent=settings.gpr||80;
+  document.getElementById('st-period').value=settings.period||2;
+  document.getElementById('st-period-val').textContent=(settings.period||2)+'営業日';
+  document.getElementById('st-cd').value=settings.cd||3;
+  document.getElementById('st-cd-val').textContent=(settings.cd||3)+'分';
+  document.getElementById('st-rise').value=settings.rise||5;
+  document.getElementById('st-stop').value=settings.stop||3;
+}
+function saveSettings(){
+  settings.gpr   =parseInt(document.getElementById('st-gpr').value);
+  settings.period=parseInt(document.getElementById('st-period').value);
+  settings.cd    =parseInt(document.getElementById('st-cd').value);
+  settings.rise  =parseFloat(document.getElementById('st-rise').value);
+  settings.stop  =parseFloat(document.getElementById('st-stop').value);
+  localStorage.setItem('compass_cfg',JSON.stringify(settings));
+  currentPeriod=settings.period;
+  document.getElementById('period-slider').value=currentPeriod;
+  updatePeriodDisplay(currentPeriod);
+  showToast('✓','設定を保存しました');
+}
+
+/* ══════════════════════════════════════════
+   VIEW / MODAL / TOAST / LOADING
+══════════════════════════════════════════ */
+function switchView(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='positions') renderPositions();
+}
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function showToast(icon,msg){
+  document.getElementById('t-icon').textContent=icon;
+  document.getElementById('t-msg').textContent=msg;
+  const t=document.getElementById('toast'); t.classList.add('show');
+  clearTimeout(window._tt); window._tt=setTimeout(()=>t.classList.remove('show'),3200);
+}
+function showLoadingOverlay(msg){ document.getElementById('loading-text').textContent=msg||'処理中...'; document.getElementById('loading-overlay').classList.add('show'); }
+function hideLoadingOverlay(){ document.getElementById('loading-overlay').classList.remove('show'); }
+</script>
+</body>
+</html>
