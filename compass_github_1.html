@@ -668,12 +668,13 @@ async function fetchIndices() {
   const trData = {};
   await Promise.allSettled(INDEX_LIST.map(async m => {
     try {
-      const res = await yfetch(m.ticker, '1d', '5d');
-      const {close, ts} = extractOHLC(res);
-      const validClose = close.filter(v=>v!=null);
-      if (validClose.length<2) return;
-      const price = validClose[validClose.length-1];
-      const prev  = validClose[validClose.length-2];
+      // 現在値表示用：5日分（軽量・速い）
+      const res5 = await yfetch(m.ticker, '1d', '5d');
+      const {close: c5, ts} = extractOHLC(res5);
+      const vc5 = c5.filter(v=>v!=null);
+      if (vc5.length<2) return;
+      const price = vc5[vc5.length-1];
+      const prev  = vc5[vc5.length-2];
       const chg   = (price-prev)/prev*100;
       const up    = chg>=0;
       const fmtP  = m.isUs
@@ -688,18 +689,23 @@ async function fetchIndices() {
         document.getElementById(`idx-${m.id}-t`).textContent =
           d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
       }
-      // MA判定用データ保存
-      trData[m.id] = validClose;
+
+      // MA判定用：3ヶ月分（25日線に必要な最低限）
+      const res3m = await yfetch(m.ticker, '1d', '3mo');
+      const {close: c3m} = extractOHLC(res3m);
+      trData[m.id] = c3m.filter(v=>v!=null);
     } catch {}
   }));
 
-  // MA判定（各指数の日足で25日線）
+  // MA判定（25日線）
   const trKeys = ['nk','tp','gr','sp','nq'];
-  let upCount=0;
+  let upCount = 0;
+  let judged  = 0;
   trKeys.forEach(id => {
     const closes = trData[id];
     if (!closes || closes.length < 26) return;
-    const ma25 = calcMA(closes, 25);
+    judged++;
+    const ma25  = calcMA(closes, 25);
     const arrow = ma25.above ? (ma25.slope>0.05?'↗':'→') : (ma25.slope<-0.05?'↘':'→');
     const color = ma25.above ? 'var(--green2)' : 'var(--red2)';
     const label = ma25.above ? '25日線上' : '25日線下';
@@ -708,11 +714,17 @@ async function fetchIndices() {
     document.getElementById(`tr-${id}-m`).style.color = color;
     if (ma25.above) upCount++;
   });
-  const total = trKeys.length;
+
   const vEl = document.getElementById('verdict');
-  if (upCount >= 4) vEl.innerHTML = '総合判定: <span style="color:var(--green2);font-weight:500;">上昇トレンド優勢 ／ スクリーニング実行</span>';
-  else if (upCount >= 2) vEl.innerHTML = '総合判定: <span style="color:var(--amber2);font-weight:500;">混合相場 ／ 慎重に判断</span>';
-  else vEl.innerHTML = '総合判定: <span style="color:var(--red2);font-weight:500;">下落トレンド ／ スキップ推奨</span>';
+  if (judged === 0) {
+    vEl.innerHTML = '総合判定: <span style="color:var(--t3);">データ取得中...</span>';
+  } else if (upCount >= 4) {
+    vEl.innerHTML = '総合判定: <span style="color:var(--green2);font-weight:500;">上昇トレンド優勢 ／ スクリーニング実行</span>';
+  } else if (upCount >= 2) {
+    vEl.innerHTML = '総合判定: <span style="color:var(--amber2);font-weight:500;">混合相場 ／ 慎重に判断</span>';
+  } else {
+    vEl.innerHTML = '総合判定: <span style="color:var(--red2);font-weight:500;">下落トレンド ／ スキップ推奨</span>';
+  }
 
   document.getElementById('last-update').textContent =
     new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
