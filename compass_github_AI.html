@@ -499,9 +499,20 @@ input[type=range].pslider::-webkit-slider-thumb{appearance:none;width:13px;heigh
           <div style="font-size:11px;margin-top:4px;" id="anthropic-key-status"></div>
         </div>
         <div class="setting-card">
-          <div class="setting-card-title">📰 ニュース連携</div>
-          <div style="font-size:11px;color:var(--t2);margin-top:6px;">Googleニュース RSS を自動取得します（APIキー不要・無料）。</div>
-          <div style="font-size:11px;color:var(--green2);margin-top:4px;">✓ 設定不要で自動的に動作します</div>
+          <div class="setting-card-title">📰 The News API キー（ニュース連携）</div>
+          <div class="form-group" style="margin-top:9px;">
+            <input type="password" class="f-input" id="st-news-api-key" placeholder="thenewsapi.com のトークン..." autocomplete="off">
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:5px;">thenewsapi.com で無料取得（1日100件）。このブラウザのみに保存されます。</div>
+          <div style="font-size:11px;margin-top:4px;" id="news-api-key-status"></div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-card-title">📊 J-Quants APIキー（日本株決算）</div>
+          <div class="form-group" style="margin-top:9px;">
+            <input type="password" class="f-input" id="st-jquants-key" placeholder="jpx-jquants.com のAPIキー..." autocomplete="off">
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:5px;">jpx-jquants.com で無料取得。このブラウザのみに保存されます。</div>
+          <div style="font-size:11px;margin-top:4px;" id="jquants-key-status"></div>
         </div>
         <button class="save-btn" onclick="saveSettings()">設定を保存</button>
       </div>
@@ -1448,8 +1459,12 @@ function applySettings(){
 
   document.getElementById('anthropic-key-status').textContent = ak ? '✓ 保存済み' : '未設定';
   document.getElementById('anthropic-key-status').style.color = ak ? 'var(--green2)' : 'var(--t3)';
-
-
+  const nk = localStorage.getItem('compass_news_api_key');
+  document.getElementById('news-api-key-status').textContent = nk ? '✓ 保存済み' : '未設定';
+  document.getElementById('news-api-key-status').style.color = nk ? 'var(--green2)' : 'var(--t3)';
+  const jk = localStorage.getItem('compass_jquants_key');
+  document.getElementById('jquants-key-status').textContent = jk ? '✓ 保存済み' : '未設定';
+  document.getElementById('jquants-key-status').style.color = jk ? 'var(--green2)' : 'var(--t3)';
 }
 
 function saveSettings(){
@@ -1466,18 +1481,100 @@ function saveSettings(){
   const ak = document.getElementById('st-anthropic-key').value.trim();
 
   if (ak) localStorage.setItem('compass_anthropic_key', ak);
-  // ニュースはGoogleニュースRSSのため保存不要
   document.getElementById('st-anthropic-key').value='';
+  const nk = document.getElementById('st-news-api-key').value.trim();
+  if (nk) localStorage.setItem('compass_news_api_key', nk);
+  document.getElementById('st-news-api-key').value='';
+  const jk = document.getElementById('st-jquants-key').value.trim();
+  if (jk) localStorage.setItem('compass_jquants_key', jk);
+  document.getElementById('st-jquants-key').value='';
 
   applySettings();
   showToast('✓','設定を保存しました');
 }
 
 /* ══════════════════════════════════════════
-   決算データ取得（Yahoo Finance v10 + v11フォールバック）
+   決算データ取得
+   日本株 → J-Quants API（公式・無料）
+   米国株 → Yahoo Finance v10
 ══════════════════════════════════════════ */
-async function fetchEarnings(ticker) {
-  // 複数モジュールを試行（v10が失敗した場合v11にフォールバック）
+
+// J-Quants: リフレッシュトークン→IDトークンを取得してキャッシュ
+let _jQuantsIdToken = null;
+let _jQuantsIdTokenTs = 0;
+
+async function getJQuantsIdToken() {
+  const now = Date.now();
+  // IDトークンは24時間有効なので23時間キャッシュ
+  if (_jQuantsIdToken && (now - _jQuantsIdTokenTs) < 23*3600*1000) return _jQuantsIdToken;
+  const refreshToken = localStorage.getItem('compass_jquants_key');
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(
+      `${WORKER}?url=${encodeURIComponent('https://api.jquants.com/v1/token/auth_refresh?refreshtoken=' + refreshToken)}`,
+      { method: 'GET', signal: AbortSignal.timeout(10000) }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    _jQuantsIdToken = json.idToken || null;
+    _jQuantsIdTokenTs = now;
+    return _jQuantsIdToken;
+  } catch { return null; }
+}
+
+async function fetchEarningsJP(code) {
+  // codeは "7203.T" → "7203" に変換
+  const stockCode = code.replace('.T','');
+  try {
+    const idToken = await getJQuantsIdToken();
+    if (!idToken) return null;
+
+    // 財務情報取得
+    const url = `https://api.jquants.com/v1/fins/statements?code=${stockCode}`;
+    const res = await fetch(
+      `${WORKER}?url=${encodeURIComponent(url)}&token=${encodeURIComponent(idToken)}`,
+      { signal: AbortSignal.timeout(12000) }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const statements = json.statements || [];
+    if (statements.length === 0) return null;
+
+    // 最新の決算データ
+    const latest = statements[statements.length - 1];
+    const prev   = statements.length >= 2 ? statements[statements.length - 2] : null;
+
+    const netSales     = parseFloat(latest.NetSales) || 0;
+    const operatingIncome = parseFloat(latest.OperatingProfit) || 0;
+    const netIncome    = parseFloat(latest.NetIncome) || 0;
+    const equity       = parseFloat(latest.Equity) || 1;
+    const prevSales    = prev ? parseFloat(prev.NetSales) || 0 : 0;
+    const prevIncome   = prev ? parseFloat(prev.NetIncome) || 0 : 0;
+
+    const revenueGrowth  = prevSales  > 0 ? ((netSales - prevSales) / prevSales * 100).toFixed(1) + '%' : 'N/A';
+    const earningsGrowth = prevIncome > 0 ? ((netIncome - prevIncome) / prevIncome * 100).toFixed(1) + '%' : 'N/A';
+    const profitMargins  = netSales   > 0 ? (operatingIncome / netSales * 100).toFixed(1) + '%' : 'N/A';
+    const roe            = equity     > 0 ? (netIncome / equity * 100).toFixed(1) + '%' : 'N/A';
+
+    // EPS
+    const epsActual   = latest.EarningsPerShare ? parseFloat(latest.EarningsPerShare).toFixed(1) + '円' : 'N/A';
+    const epsEstimate = latest.ForecastEarningsPerShare ? parseFloat(latest.ForecastEarningsPerShare).toFixed(1) + '円' : 'N/A';
+    const earningsBeat = latest.EarningsPerShare && latest.ForecastEarningsPerShare
+      ? parseFloat(latest.EarningsPerShare) > parseFloat(latest.ForecastEarningsPerShare)
+      : false;
+
+    return {
+      revenueGrowth, earningsGrowth, returnOnEquity: roe,
+      profitMargins, forwardPE: 'N/A',
+      epsActual, epsEstimate, epsDate: latest.DisclosedDate || 'N/A',
+      earningsBeat,
+      currentRatio: 'N/A', debtToEquity: 'N/A', targetPrice: 'N/A',
+      source: 'J-Quants',
+    };
+  } catch { return null; }
+}
+
+async function fetchEarningsUS(ticker) {
   const modulesList = [
     'financialData,defaultKeyStatistics,earnings',
     'financialData,defaultKeyStatistics',
@@ -1495,8 +1592,7 @@ async function fetchEarnings(ticker) {
       const dk = q.defaultKeyStatistics || {};
       const ea = q.earnings?.earningsChart || {};
       const quarterly = ea.quarterly || [];
-      const latest = quarterly[quarterly.length-1] || {};
-      // 有効なデータが1つでもあれば返す
+      const latest2 = quarterly[quarterly.length-1] || {};
       const hasData = fd.revenueGrowth || fd.returnOnEquity || fd.profitMargins;
       if (!hasData) continue;
       return {
@@ -1505,44 +1601,78 @@ async function fetchEarnings(ticker) {
         returnOnEquity: fd.returnOnEquity?.fmt  || 'N/A',
         profitMargins:  fd.profitMargins?.fmt   || 'N/A',
         forwardPE:      dk.forwardPE?.fmt       || 'N/A',
-        epsActual:      latest.actual?.fmt      || 'N/A',
-        epsEstimate:    latest.estimate?.fmt    || 'N/A',
-        epsDate:        latest.date             || 'N/A',
-        earningsBeat:   (latest.actual?.raw ?? 0) > (latest.estimate?.raw ?? 0),
+        epsActual:      latest2.actual?.fmt     || 'N/A',
+        epsEstimate:    latest2.estimate?.fmt   || 'N/A',
+        epsDate:        latest2.date            || 'N/A',
+        earningsBeat:   (latest2.actual?.raw ?? 0) > (latest2.estimate?.raw ?? 0),
         currentRatio:   fd.currentRatio?.fmt    || 'N/A',
         debtToEquity:   fd.debtToEquity?.fmt    || 'N/A',
         targetPrice:    fd.targetMeanPrice?.fmt || 'N/A',
+        source: 'Yahoo Finance',
       };
     } catch { continue; }
   }
   return null;
 }
 
+async function fetchEarnings(ticker) {
+  const isJP = ticker.endsWith('.T');
+  if (isJP) return fetchEarningsJP(ticker);
+  else       return fetchEarningsUS(ticker);
+}
+
 /* ══════════════════════════════════════════
-   ニュース取得（Googleニュース RSS → Workerでパース）
-   ※NewsAPI無料プランは本番サイトから呼び出し不可のため
-     Googleニュース RSSに切り替え（完全無料・制限なし）
+   ニュース取得（The News API 直接fetch）
+   直列取得でレート制限・ボットブロックを回避
 ══════════════════════════════════════════ */
-async function fetchNews(stockName, ticker) {
+const _newsRequestQueue = [];
+let   _newsQueueRunning = false;
+
+// 直列キューで順番にリクエスト（500ms間隔）
+async function fetchNewsQueued(stockName, ticker) {
+  return new Promise((resolve) => {
+    _newsRequestQueue.push({ stockName, ticker, resolve });
+    if (!_newsQueueRunning) _runNewsQueue();
+  });
+}
+
+async function _runNewsQueue() {
+  _newsQueueRunning = true;
+  while (_newsRequestQueue.length > 0) {
+    const { stockName, ticker, resolve } = _newsRequestQueue.shift();
+    const result = await _fetchNewsDirect(stockName, ticker);
+    resolve(result);
+    if (_newsRequestQueue.length > 0) {
+      await new Promise(r => setTimeout(r, 500)); // 500ms間隔
+    }
+  }
+  _newsQueueRunning = false;
+}
+
+async function _fetchNewsDirect(stockName, ticker) {
+  const newsKey = localStorage.getItem('compass_news_api_key');
+  if (!newsKey) return [];
   try {
-    const q   = encodeURIComponent(`${stockName} ${ticker}`);
-    const rss = `https://news.google.com/rss/search?q=${q}&hl=ja&gl=JP&ceid=JP:ja`;
-    const res = await fetch(`${WORKER}?url=${encodeURIComponent(rss)}`,{signal:AbortSignal.timeout(10000)});
+    // 日本株は銘柄名、米国株はtickerで検索
+    const isUs = !ticker.endsWith('.T');
+    const q    = isUs ? ticker : stockName;
+    const lang = isUs ? 'en' : 'ja';
+    const url  = `https://api.thenewsapi.com/v1/news/all?api_token=${newsKey}&search=${encodeURIComponent(q)}&language=${lang}&limit=5&sort=published_at`;
+    const res  = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return [];
-    const text = await res.text();
-    // XMLをパース
-    const parser = new DOMParser();
-    const doc    = parser.parseFromString(text, 'text/xml');
-    const items  = Array.from(doc.querySelectorAll('item')).slice(0,5);
-    return items.map(item => {
-      const title  = item.querySelector('title')?.textContent  || '';
-      const link   = item.querySelector('link')?.textContent   || '';
-      const pubDate= item.querySelector('pubDate')?.textContent|| '';
-      const source = item.querySelector('source')?.textContent || 'Googleニュース';
-      const date   = pubDate ? new Date(pubDate).toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'}) : '';
-      return { title: title.replace(/ - .+$/, ''), source, url: link, date };
-    }).filter(n => n.title);
+    const json = await res.json();
+    return (json.data || []).slice(0, 5).map(a => ({
+      title:  a.title  || '',
+      source: a.source || '',
+      url:    a.url    || '',
+      date:   a.published_at ? new Date(a.published_at).toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'}) : '',
+    })).filter(n => n.title);
   } catch { return []; }
+}
+
+// 外部から呼ぶ関数（キャッシュなし版）
+async function fetchNews(stockName, ticker) {
+  return fetchNewsQueued(stockName, ticker);
 }
 
 /* ══════════════════════════════════════════
