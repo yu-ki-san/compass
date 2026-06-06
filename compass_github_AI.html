@@ -758,7 +758,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   showLoadingOverlay('市場データ取得中...');
   try {
     await Promise.all([fetchIndices(), fetchVIX()]);
-    await runScreening();
+    await dynamicRunScreening();
     document.getElementById('api-status').textContent = '● Yahoo Finance 接続中';
     document.getElementById('api-status').style.color = 'var(--green2)';
   } catch(e) {
@@ -1062,17 +1062,20 @@ ${stocksText}
       },
       body: JSON.stringify({
         model:'claude-haiku-4-5',
-        max_tokens:2048,
+        max_tokens:4096,
         messages:[{role:'user',content:prompt}]
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) { console.warn('Claude API error:',res.status); return {}; }
     const json = await res.json();
     const text = json?.content?.[0]?.text||'';
-    const clean = text.replace(/```json|```/g,'').trim();
+    let clean = text.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
+    const jsonStart=clean.indexOf('{');
+    const jsonEnd=clean.lastIndexOf('}');
+    if(jsonStart===-1||jsonEnd===-1){ console.warn('Bulk AI: JSON not found'); return {}; }
+    clean=clean.slice(jsonStart,jsonEnd+1);
     const parsed = JSON.parse(clean);
-    // ticker→結果のマップに変換
     const map = {};
     (parsed.analyses||[]).forEach(a=>{ map[a.ticker]=a; });
     return map;
@@ -1108,7 +1111,7 @@ async function triggerRecalc(silent=false) {
   const sv=setInterval(()=>{ if(!silent&&si<steps.length) document.getElementById('loading-text').textContent=steps[si++]; },500);
   try {
     await Promise.all([fetchIndices(), fetchVIX()]);
-    await runScreening();
+    await dynamicRunScreening();
     if (!silent) showToast('↻',`再計算完了 — ${currentPeriod}営業日ベース`);
   } catch(e) {
     showToast('⚠','取得エラー: '+e.message);
@@ -1728,6 +1731,14 @@ function _renderAIPanel(panel, ai, earnings, news, signal) {
    VIEW / MODAL / TOAST / LOADING
 ══════════════════════════════════════════ */
 
+function switchView(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='positions') renderPositions();
+  if(name==='mylist')    renderMyListStocks();
+}
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 function showToast(icon,msg){
   document.getElementById('t-icon').textContent=icon;
@@ -2020,9 +2031,9 @@ function openMyListDetail(idx){
 ══════════════════════════════════════════ */
 window._dynamicWatchlistCache=null;
 window._dynamicWatchlistTs=0;
-const _origRunScreening=runScreening;
 
-runScreening=async function(){
+// runScreeningを直接上書きせず、動的WATCHLIST版を別関数として定義
+async function dynamicRunScreening(){
   const now=Date.now();
   if(!window._dynamicWatchlistCache||(now-window._dynamicWatchlistTs)>5*60*1000){
     const dynamic=await buildDynamicWatchlist();
@@ -2032,10 +2043,10 @@ runScreening=async function(){
   const original=[...WATCHLIST];
   WATCHLIST.length=0;
   window._dynamicWatchlistCache.forEach(s=>WATCHLIST.push(s));
-  await _origRunScreening();
+  await runScreening();
   WATCHLIST.length=0;
   original.forEach(s=>WATCHLIST.push(s));
-};
+}
 
 </script>
 </body>
