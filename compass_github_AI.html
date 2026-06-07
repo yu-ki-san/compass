@@ -1510,9 +1510,11 @@ async function getJQuantsIdToken() {
   const refreshToken = localStorage.getItem('compass_jquants_key');
   if (!refreshToken) return null;
   try {
+    // J-Quants auth_refresh は POST リクエスト
+    const targetUrl = 'https://api.jquants.com/v1/token/auth_refresh?refreshtoken=' + encodeURIComponent(refreshToken);
     const res = await fetch(
-      `${WORKER}?url=${encodeURIComponent('https://api.jquants.com/v1/token/auth_refresh?refreshtoken=' + refreshToken)}`,
-      { method: 'GET', signal: AbortSignal.timeout(10000) }
+      `${WORKER}?url=${encodeURIComponent(targetUrl)}&method=POST`,
+      { signal: AbortSignal.timeout(10000) }
     );
     if (!res.ok) return null;
     const json = await res.json();
@@ -1575,6 +1577,8 @@ async function fetchEarningsJP(code) {
 }
 
 async function fetchEarningsUS(ticker) {
+  // Yahoo Finance v11（v10の401対策）を使用
+  // v11はcrumb不要・Worker経由でアクセス可能
   const modulesList = [
     'financialData,defaultKeyStatistics,earnings',
     'financialData,defaultKeyStatistics',
@@ -1582,10 +1586,19 @@ async function fetchEarningsUS(ticker) {
   ];
   for (const modules of modulesList) {
     try {
-      const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}&corsDomain=finance.yahoo.com`;
-      const res = await fetch(`${WORKER}?url=${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(12000)});
-      if (!res.ok) continue;
-      const json = await res.json();
+      // v11エンドポイントを試す
+      const urlV11 = `https://query1.finance.yahoo.com/v11/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}`;
+      const resV11 = await fetch(`${WORKER}?url=${encodeURIComponent(urlV11)}`,{signal:AbortSignal.timeout(12000)});
+      let json = null;
+      if (resV11.ok) {
+        json = await resV11.json();
+      } else {
+        // v11失敗時はv10にフォールバック
+        const urlV10 = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}&corsDomain=finance.yahoo.com`;
+        const resV10 = await fetch(`${WORKER}?url=${encodeURIComponent(urlV10)}`,{signal:AbortSignal.timeout(12000)});
+        if (!resV10.ok) continue;
+        json = await resV10.json();
+      }
       const q = json?.quoteSummary?.result?.[0];
       if (!q) continue;
       const fd = q.financialData || {};
